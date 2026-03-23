@@ -37,10 +37,16 @@ except ImportError:
 
 try:
     from ecpm.models import Base  # noqa: F401 -- used by downstream tests
+
+    _HAS_ECPM_MODELS = True
+except ImportError:
+    _HAS_ECPM_MODELS = False
+
+try:
     from ecpm.database import get_db  # noqa: F401 -- used by downstream tests
 
     _HAS_ECPM_DB = True
-except ImportError:
+except (ImportError, Exception):
     _HAS_ECPM_DB = False
 
 try:
@@ -73,7 +79,7 @@ async def async_session() -> AsyncGenerator[Any, None]:
     engine = create_async_engine("sqlite+aiosqlite://", echo=False)
 
     # If production models are available, create tables
-    if _HAS_ECPM_DB:
+    if _HAS_ECPM_MODELS:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
@@ -95,8 +101,7 @@ def mock_fred_client() -> MagicMock:
     """Return a mock FRED API client with canned data for GDPC1.
 
     The mock exposes:
-      - client.get_series("GDPC1") -> pandas Series
-      - client.get_series_info("GDPC1") -> dict with metadata
+      - client.fetch_series(series_id) -> (pandas Series, dict) matching FredClient interface
     """
     client = MagicMock()
 
@@ -122,8 +127,7 @@ def mock_fred_client() -> MagicMock:
         "observation_end": "2023-10-01",
     }
 
-    client.get_series.return_value = gdpc1_data
-    client.get_series_info.return_value = gdpc1_info
+    client.fetch_series.return_value = (gdpc1_data, gdpc1_info)
     return client
 
 

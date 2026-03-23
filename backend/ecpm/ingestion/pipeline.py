@@ -292,9 +292,7 @@ class IngestionPipeline:
         """
         logger.info("ingest_fred_start", series_id=series_id)
 
-        # Use get_series and get_series_info (matching conftest mock interface)
-        data = self.fred_client.get_series(series_id)
-        info_raw = self.fred_client.get_series_info(series_id)
+        data, info_raw = self.fred_client.fetch_series(series_id)
 
         # Convert info to dict if it's a pandas Series
         if isinstance(info_raw, pd.Series):

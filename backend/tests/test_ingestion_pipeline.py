@@ -113,7 +113,7 @@ class TestGapHandling:
                 ),
                 name="GDPC1",
             )
-            mock_fred_client.get_series.return_value = data_with_gaps
+            mock_fred_client.fetch_series.return_value = (data_with_gaps, {"id": "GDPC1", "title": "Real GDP", "units": "Billions", "frequency": "Quarterly", "seasonal_adjustment": "SA"})
 
         pipeline = IngestionPipeline(
             session=async_session,
@@ -163,7 +163,7 @@ class TestNativeFrequency:
                 ),
                 name="UNRATE",
             )
-            mock_fred_client.get_series.return_value = monthly_data
+            mock_fred_client.fetch_series.return_value = (monthly_data, {"id": "UNRATE", "title": "Unemployment Rate", "units": "Percent", "frequency": "Monthly", "seasonal_adjustment": "SA"})
 
         pipeline = IngestionPipeline(
             session=async_session,
@@ -197,16 +197,15 @@ class TestErrorContinues:
     ) -> None:
         # Make first series fail
         call_count = 0
-        original_get = mock_fred_client.get_series.side_effect
 
         def conditional_fail(series_id):
             nonlocal call_count
             call_count += 1
             if series_id == "GDPC1":
                 raise ConnectionError("Simulated FRED failure")
-            return mock_fred_client.get_series.return_value
+            return mock_fred_client.fetch_series.return_value
 
-        mock_fred_client.get_series.side_effect = conditional_fail
+        mock_fred_client.fetch_series.side_effect = conditional_fail
 
         pipeline = IngestionPipeline(
             session=async_session,
