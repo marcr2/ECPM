@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Active
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-23T21:20:07.086Z"
-last_activity: 2026-03-23 -- Completed 03-01-PLAN.md (Modeling foundation - schemas, test scaffolds, synthetic fixtures)
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-23T21:30:15.030Z"
+last_activity: 2026-03-23 -- Completed 03-02-PLAN.md (Core modeling modules - stationarity, VAR/SVAR, regime-switching, crisis index, backtest)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 17
-  completed_plans: 12
+  completed_plans: 13
   percent: 76
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 3 of 5 (Predictive Modeling and Crisis Index)
-Plan: 1 of 5 in current phase (03-01 COMPLETE)
+Plan: 2 of 5 in current phase (03-02 COMPLETE)
 Status: Active
-Last activity: 2026-03-23 -- Completed 03-01-PLAN.md (Modeling foundation - schemas, test scaffolds, synthetic fixtures)
+Last activity: 2026-03-23 -- Completed 03-02-PLAN.md (Core modeling modules - stationarity, VAR/SVAR, regime-switching, crisis index, backtest)
 
 Progress: [████████░░] 76%
 
@@ -60,6 +60,7 @@ Progress: [████████░░] 76%
 | Phase 02 P03 | 6min | 2 tasks | 9 files |
 | Phase 02 P04 | 12min | 2 tasks | 5 files |
 | Phase 03 P01 | 4min | 2 tasks | 11 files |
+| Phase 03 P02 | 9min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [03-01]: pytest.importorskip at module level for clean skip-marking of unimplemented modeling modules
 - [03-01]: numpy default_rng(42) for reproducible synthetic data (modern Generator API)
 - [03-01]: Synthetic indicator data uses realistic economic trends for domain validity in tests
+- [Phase 03-02]: Global cross-sectional percentile normalization for crisis index to preserve absolute level sensitivity
+- [Phase 03-02]: Markov transition matrix transposed to standard convention (rows sum to 1) from statsmodels convention (columns sum to 1)
+- [Phase 03-02]: SVAR fitting returns None on convergence failure for graceful degradation
 
 ### Pending Todos
 
@@ -109,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T21:20:07.083Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-corporate-concentration-analysis/05-CONTEXT.md
+Last session: 2026-03-23T21:30:15.025Z
+Stopped at: Completed 03-02-PLAN.md
+Resume file: None
