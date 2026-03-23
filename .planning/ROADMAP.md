@@ -39,7 +39,7 @@ Plans:
 - [x] 01-03-PLAN.md -- FRED/BEA ingestion clients, pipeline orchestrator, Celery scheduling, CLI
 - [x] 01-04-PLAN.md -- FastAPI REST endpoints, Redis caching, SSE streaming, status monitoring
 - [x] 01-05-PLAN.md -- Next.js frontend skeleton, dark theme, navigation shell, data overview table
-- [ ] 01-06-PLAN.md -- Gap closure: fix pipeline-FredClient wiring bug, update REQUIREMENTS.md
+- [x] 01-06-PLAN.md -- Gap closure: fix pipeline-FredClient wiring bug, update REQUIREMENTS.md
 
 ### Phase 2: Feature Engineering and Core Dashboard
 **Goal**: User can explore computed Marxist economic indicators (rate of profit, OCC, rate of surplus value, productivity-wage gap, financial fragility) in an interactive dashboard with documented methodology
