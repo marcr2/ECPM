@@ -95,9 +95,9 @@ class MethodologyMapper(ABC):
     ) -> pd.Series:
         """Compute productivity-wage gap as ratio of indices over rolling window.
 
-        Default implementation: ratio of output-per-hour index to
-        real-compensation-per-hour index. This does not vary by Marxist
-        methodology, so a default implementation is provided.
+        Default implementation delegates to financial.py standalone function.
+        This does not vary by Marxist methodology, so a default implementation
+        is provided.
 
         Args:
             data: Must contain 'output_per_hour' and 'real_compensation_per_hour'.
@@ -106,23 +106,15 @@ class MethodologyMapper(ABC):
         Returns:
             pd.Series of gap index values (base=100 at start).
         """
-        output = data["output_per_hour"]
-        compensation = data["real_compensation_per_hour"]
+        from ecpm.indicators.financial import compute_productivity_wage_gap
 
-        # Normalize to index base=100
-        output_idx = (output / output.iloc[0]) * 100
-        comp_idx = (compensation / compensation.iloc[0]) * 100
-
-        gap = output_idx / comp_idx * 100
-        if window > 1 and len(gap) >= window:
-            gap = gap.rolling(window=window, min_periods=1).mean()
-        return gap
+        return compute_productivity_wage_gap(data, window=window)
 
     def compute_credit_gdp_gap(self, data: dict[str, pd.Series]) -> pd.Series:
         """Compute credit-to-GDP gap using one-sided HP filter.
 
-        Default implementation using BIS methodology: lambda=400,000 for
-        quarterly data. Does not vary by Marxist methodology.
+        Default implementation delegates to financial.py standalone function.
+        Uses BIS methodology: lambda=400,000 for quarterly data.
 
         Args:
             data: Must contain 'credit_total' and 'nominal_gdp'.
@@ -130,23 +122,14 @@ class MethodologyMapper(ABC):
         Returns:
             pd.Series of gap values in percentage points.
         """
-        import numpy as np
+        from ecpm.indicators.financial import compute_credit_gdp_gap
 
-        credit = data["credit_total"]
-        gdp = data["nominal_gdp"]
-
-        ratio = (credit / gdp) * 100  # percentage
-
-        # One-sided HP filter (recursive approximation, BIS lambda=400,000)
-        trend = _one_sided_hp_filter(ratio.values, lamb=400_000)
-        gap = ratio - pd.Series(trend, index=ratio.index)
-        return gap
+        return compute_credit_gdp_gap(data)
 
     def compute_financial_real_ratio(self, data: dict[str, pd.Series]) -> pd.Series:
         """Compute financial-to-real asset ratio.
 
-        Default implementation: financial assets / real (tangible) assets.
-        Does not vary by Marxist methodology.
+        Default implementation delegates to financial.py standalone function.
 
         Args:
             data: Must contain 'financial_assets' and 'real_assets'.
@@ -154,13 +137,14 @@ class MethodologyMapper(ABC):
         Returns:
             pd.Series of ratio values.
         """
-        return data["financial_assets"] / data["real_assets"]
+        from ecpm.indicators.financial import compute_financial_real_ratio
+
+        return compute_financial_real_ratio(data)
 
     def compute_debt_service_ratio(self, data: dict[str, pd.Series]) -> pd.Series:
         """Compute corporate debt service ratio.
 
-        Default implementation: debt service payments / income.
-        Does not vary by Marxist methodology.
+        Default implementation delegates to financial.py standalone function.
 
         Args:
             data: Must contain 'debt_service' and 'corporate_income'.
@@ -168,7 +152,9 @@ class MethodologyMapper(ABC):
         Returns:
             pd.Series of ratio values in percent.
         """
-        return (data["debt_service"] / data["corporate_income"]) * 100
+        from ecpm.indicators.financial import compute_debt_service_ratio
+
+        return compute_debt_service_ratio(data)
 
     @abstractmethod
     def get_required_series(self) -> list[str]:
