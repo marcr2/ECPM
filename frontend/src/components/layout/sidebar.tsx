@@ -1,0 +1,135 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import {
+  Database,
+  BarChart3,
+  TrendingUp,
+  GitBranch,
+  PieChart,
+} from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+
+const phases = [
+  {
+    name: "Data Overview",
+    href: "/data",
+    icon: Database,
+    phase: 1,
+    enabled: true,
+  },
+  {
+    name: "Indicators",
+    href: "/indicators",
+    icon: BarChart3,
+    phase: 2,
+    enabled: false,
+  },
+  {
+    name: "Forecasting",
+    href: "/forecasting",
+    icon: TrendingUp,
+    phase: 3,
+    enabled: false,
+  },
+  {
+    name: "Structural Analysis",
+    href: "/structural",
+    icon: GitBranch,
+    phase: 4,
+    enabled: false,
+  },
+  {
+    name: "Concentration",
+    href: "/concentration",
+    icon: PieChart,
+    phase: 5,
+    enabled: false,
+  },
+];
+
+export function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground">
+      {/* Logo / Title */}
+      <div className="flex h-14 items-center px-4">
+        <Link href="/data" className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-bold">
+            EC
+          </div>
+          <div>
+            <span className="text-sm font-semibold tracking-tight">ECPM</span>
+            <span className="ml-1.5 text-[10px] text-muted-foreground">
+              v0.1
+            </span>
+          </div>
+        </Link>
+      </div>
+
+      <Separator />
+
+      {/* Navigation */}
+      <nav className="flex-1 space-y-1 px-2 py-3">
+        <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Modules
+        </p>
+        {phases.map((phase) => {
+          const isActive =
+            phase.enabled &&
+            (pathname === phase.href || pathname?.startsWith(phase.href + "/"));
+          const Icon = phase.icon;
+
+          if (!phase.enabled) {
+            return (
+              <div
+                key={phase.href}
+                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground/50 cursor-not-allowed select-none"
+              >
+                <Icon className="h-4 w-4" />
+                <span>{phase.name}</span>
+                <span className="ml-auto text-[9px] font-medium opacity-50">
+                  P{phase.phase}
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={phase.href}
+              href={phase.href}
+              className={cn(
+                "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              <span>{phase.name}</span>
+              <span className="ml-auto text-[9px] font-medium text-muted-foreground">
+                P{phase.phase}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <Separator />
+
+      {/* Footer */}
+      <div className="px-4 py-3">
+        <p className="text-[10px] text-muted-foreground">
+          Economic Crisis Prediction Model
+        </p>
+        <p className="text-[10px] text-muted-foreground/60">
+          Marxist Political Economy
+        </p>
+      </div>
+    </aside>
+  );
+}
