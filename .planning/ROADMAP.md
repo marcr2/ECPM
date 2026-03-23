@@ -70,12 +70,14 @@ Plans:
   3. User can run a backtest against the 2007-2009 crisis and see that crisis indicators rise 12-24 months prior to the event
   4. User can see regime-switching detection results showing whether the current period is classified as crisis, normal, or stagnation
   5. User can monitor long-running model training jobs via streaming progress updates (SSE) without the dashboard freezing
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md -- Test scaffolds, Pydantic schemas, statsmodels dependency, synthetic data fixtures
+- [ ] 03-02-PLAN.md -- Core modeling modules: stationarity, VAR, SVAR, regime-switching, crisis index, backtest
+- [ ] 03-03-PLAN.md -- Celery training pipeline tasks, FastAPI forecasting endpoints, SSE training stream
+- [ ] 03-04-PLAN.md -- Frontend /forecasting page: crisis gauge, forecast charts, backtest timelines, training status, regime detail
+- [ ] 03-05-PLAN.md -- Integration: forecast toggle on Phase 2 charts, auto-retrain schedule, sidebar enable
 
 ### Phase 4: Structural Analysis
 **Goal**: User can explore inter-industry structure through Leontief input-output analysis, simulate sectoral shock propagation, and verify Marx's expanded reproduction conditions
@@ -115,6 +117,6 @@ Phases execute in numeric order. Phase 4 depends on Phase 1 (not Phase 3), so Ph
 |-------|----------------|--------|-----------|
 | 1. Foundation and Data Ingestion | 7/7 | Complete | 2026-03-23 |
 | 2. Feature Engineering and Core Dashboard | 4/5 | In Progress | - |
-| 3. Predictive Modeling and Crisis Index | 0/3 | Not started | - |
+| 3. Predictive Modeling and Crisis Index | 0/5 | Not started | - |
 | 4. Structural Analysis | 0/2 | Not started | - |
 | 5. Corporate Concentration Analysis | 0/2 | Not started | - |
