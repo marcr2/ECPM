@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-03-23T18:25:15.160Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-03-23T18:27:24.453Z"
 last_activity: 2026-03-23 -- Completed 01-04-PLAN.md
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 67
 ---
 
@@ -50,6 +50,7 @@ Progress: [######░░░░] 67%
 - Trend: Steady
 
 *Updated after each plan completion*
+| Phase 01 P03 | 8min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,9 @@ Recent decisions affecting current work:
 - [01-04]: LOCF frequency alignment groups by period, keeps latest observation per period
 - [01-04]: Celery task import wrapped in try/except for graceful fallback when Plan 01-03 incomplete
 - [01-04]: Test fixture overrides get_db and lifespan for in-memory SQLite testing
+- [Phase 01]: Canonical ingestion code in ecpm/ingestion/ with re-export modules at ecpm/clients/ and ecpm/pipeline for test import compatibility
+- [Phase 01]: Pipeline uses session.merge() for SQLite-compatible upsert in tests, works with PG in production
+- [Phase 01]: BEA series stored as BEA:{table}:L{line_number} for unique identification per table line item
 
 ### Pending Todos
 
@@ -77,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T18:25:15.157Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-03-23T18:27:24.450Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None
