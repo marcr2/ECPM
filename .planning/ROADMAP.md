@@ -12,7 +12,7 @@ ECPM delivers a working pipeline from raw US macroeconomic data (FRED/BEA) throu
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation and Data Ingestion** - Docker stack, TimescaleDB schema, FRED/BEA data pipeline, FastAPI/Next.js skeletons
+- [x] **Phase 1: Foundation and Data Ingestion** - Docker stack, TimescaleDB schema, FRED/BEA data pipeline, FastAPI/Next.js skeletons (completed 2026-03-23)
 - [ ] **Phase 2: Feature Engineering and Core Dashboard** - NIPA-to-Marx translation engine, all Marxist indicators, interactive time-series dashboard
 - [ ] **Phase 3: Predictive Modeling and Crisis Index** - VAR/SVAR forecasting, regime-switching detection, Composite Crisis Probability Index, historical backtesting
 - [ ] **Phase 4: Structural Analysis** - Leontief I-O ingestion, inverse computation, shock propagation, reproduction schema visualization
@@ -30,7 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can query FastAPI endpoints and receive stored time-series data with metadata (units, frequency, source, last updated)
   4. System automatically re-fetches data on a configurable schedule without manual intervention, with exponential backoff on API failures
   5. User can see the Next.js frontend loads and connects to the backend API (skeleton page, no visualizations yet)
-**Plans:** 6 plans
+**Plans:** 6/6 plans complete
 
 Plans:
 - [ ] 01-00-PLAN.md -- Wave 0 test infrastructure (all test scaffold files and conftest)
@@ -110,7 +110,7 @@ Phases execute in numeric order. Phase 4 depends on Phase 1 (not Phase 3), so Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Data Ingestion | 0/6 | Not started | - |
+| 1. Foundation and Data Ingestion | 6/6 | Complete   | 2026-03-23 |
 | 2. Feature Engineering and Core Dashboard | 0/3 | Not started | - |
 | 3. Predictive Modeling and Crisis Index | 0/3 | Not started | - |
 | 4. Structural Analysis | 0/2 | Not started | - |

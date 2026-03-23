@@ -71,11 +71,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INFR-01**: System runs via Docker Compose with TimescaleDB, Redis, Python backend, and Next.js frontend containers
+- [x] **INFR-01**: System runs via Docker Compose with TimescaleDB, Redis, Python backend, and Next.js frontend containers
 - [x] **INFR-02**: FastAPI backend exposes REST endpoints for all data, features, model outputs
 - [x] **INFR-03**: FastAPI uses SSE for streaming progress of long-running jobs (model training, backtesting)
 - [x] **INFR-04**: Redis caches expensive computations (Leontief inverse, model predictions, dashboard state)
-- [ ] **INFR-05**: Docker Compose includes health checks and separate dev/prod configurations
+- [x] **INFR-05**: Docker Compose includes health checks and separate dev/prod configurations
 
 ## v2 Requirements
 
@@ -168,11 +168,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-06 | Phase 3 | Pending |
 | DASH-07 | Phase 4 | Pending |
 | DASH-08 | Phase 2 | Pending |
-| INFR-01 | Phase 1 | Pending |
+| INFR-01 | Phase 1 | Complete |
 | INFR-02 | Phase 1 | Complete |
 | INFR-03 | Phase 1 | Complete |
 | INFR-04 | Phase 1 | Complete |
-| INFR-05 | Phase 1 | Pending |
+| INFR-05 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 49 total
