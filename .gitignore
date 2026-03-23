@@ -50,7 +50,7 @@ timescaledb_data/
 *.parquet
 *.h5
 *.hdf5
-data/
+/data/
 
 # Jupyter
 .ipynb_checkpoints/
