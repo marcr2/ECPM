@@ -434,3 +434,87 @@ class TestFrequencyAlignment:
         from ecpm.indicators.definitions import FREQUENCY_STRATEGY
 
         assert FREQUENCY_STRATEGY == "LOCF"
+
+
+# ---------------------------------------------------------------------------
+# Standalone financial.py function tests
+# ---------------------------------------------------------------------------
+
+
+class TestFinancialStandaloneFunctions:
+    """Test standalone financial indicator functions from financial.py."""
+
+    def test_compute_productivity_wage_gap_standalone(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """Standalone function should produce same result as ABC default."""
+        from ecpm.indicators.financial import compute_productivity_wage_gap
+
+        result = compute_productivity_wage_gap(mock_nipa_data, window=1)
+        assert isinstance(result, pd.Series)
+        assert len(result) == 3
+        assert result.iloc[0] == pytest.approx(100.0, rel=1e-2)
+        assert result.iloc[-1] > 100.0
+
+    def test_compute_credit_gdp_gap_standalone(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """Standalone function produces gap with non-trivial variation."""
+        from ecpm.indicators.financial import compute_credit_gdp_gap
+
+        result = compute_credit_gdp_gap(mock_nipa_data)
+        assert isinstance(result, pd.Series)
+        assert len(result) == 40
+        assert result.std() > 0.01
+
+    def test_compute_financial_real_ratio_standalone(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """Standalone function computes financial/real ratio."""
+        from ecpm.indicators.financial import compute_financial_real_ratio
+
+        result = compute_financial_real_ratio(mock_nipa_data)
+        assert isinstance(result, pd.Series)
+        assert result.iloc[0] == pytest.approx(5000 / 2000, rel=1e-3)
+
+    def test_compute_debt_service_ratio_standalone(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """Standalone function computes debt service ratio in percent."""
+        from ecpm.indicators.financial import compute_debt_service_ratio
+
+        result = compute_debt_service_ratio(mock_nipa_data)
+        assert isinstance(result, pd.Series)
+        assert result.iloc[0] == pytest.approx(100 / 500 * 100, rel=1e-3)
+
+    def test_abc_delegates_to_financial_module(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """ABC default methods should delegate to financial.py functions."""
+        from ecpm.indicators.financial import compute_financial_real_ratio
+
+        mapper = MethodologyRegistry.default()
+        mapper_result = mapper.compute_financial_real_ratio(mock_nipa_data)
+        standalone_result = compute_financial_real_ratio(mock_nipa_data)
+
+        pd.testing.assert_series_equal(mapper_result, standalone_result)
+
+
+# ---------------------------------------------------------------------------
+# Computation orchestrator tests
+# ---------------------------------------------------------------------------
+
+
+class TestComputationOrchestrator:
+    """Test the computation orchestrator dispatch logic."""
+
+    def test_get_indicator_dispatch_map(self) -> None:
+        """Orchestrator should have a dispatch map for all indicator slugs."""
+        from ecpm.indicators.computation import INDICATOR_DISPATCH
+
+        from ecpm.indicators.definitions import IndicatorSlug
+
+        for slug in IndicatorSlug:
+            assert slug in INDICATOR_DISPATCH or slug.value in INDICATOR_DISPATCH, (
+                f"Missing dispatch entry for {slug}"
+            )
