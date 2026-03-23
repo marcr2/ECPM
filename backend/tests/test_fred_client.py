@@ -1,8 +1,7 @@
 """Tests for FRED API client -- DATA-01, DATA-08.
 
 Covers authentication, data retrieval, retry/backoff, and rate limiting.
-Tests are written in RED state: they will fail until production code is
-implemented in Plan 01-03.
+All API calls are mocked to avoid hitting the real FRED API.
 """
 
 from __future__ import annotations
@@ -10,6 +9,7 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 
 # Import guard -- skip collection cleanly if production module missing
@@ -35,7 +35,25 @@ class TestFetchSeries:
 
     def test_fetch_series_returns_data(self) -> None:
         client = FredClient(api_key="test-key")
-        result = client.fetch_series("GDPC1")
+
+        # Mock the underlying fredapi calls
+        mock_data = pd.Series(
+            [18_000.0, 18_200.0, 18_500.0],
+            index=pd.to_datetime(["2023-01-01", "2023-04-01", "2023-07-01"]),
+            name="GDPC1",
+        )
+        mock_info = pd.Series({
+            "id": "GDPC1",
+            "title": "Real Gross Domestic Product",
+            "units": "Billions of Chained 2017 Dollars",
+            "frequency": "Quarterly",
+            "seasonal_adjustment": "Seasonally Adjusted Annual Rate",
+            "last_updated": "2024-01-26",
+        })
+
+        with patch.object(client.fred, "get_series", return_value=mock_data), \
+             patch.object(client.fred, "get_series_info", return_value=mock_info):
+            result = client.fetch_series("GDPC1")
 
         # Should return a tuple of (data, info_dict)
         assert isinstance(result, tuple)
@@ -55,27 +73,33 @@ class TestRetryBackoff:
     def test_retry_backoff(self) -> None:
         client = FredClient(api_key="test-key")
 
-        # Patch the underlying HTTP call to raise ConnectionError
+        # Track calls to the underlying fredapi
         call_count = 0
 
-        def failing_call(*args, **kwargs):
+        def failing_get_series(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count < 3:
                 raise ConnectionError("Connection refused")
             # Third call succeeds
-            return MagicMock()
+            return pd.Series(
+                [18_000.0],
+                index=pd.to_datetime(["2023-01-01"]),
+                name="GDPC1",
+            )
 
-        with patch.object(client, "_raw_fetch", side_effect=failing_call):
-            try:
-                client.fetch_series("GDPC1")
-            except ConnectionError:
-                pass  # May exhaust retries depending on config
+        mock_info = pd.Series({"id": "GDPC1", "title": "Real GDP"})
 
-        # Verify retry was attempted (at least 2 calls)
-        assert call_count >= 2, (
-            f"Expected at least 2 attempts (retry), got {call_count}"
+        with patch.object(client.fred, "get_series", side_effect=failing_get_series), \
+             patch.object(client.fred, "get_series_info", return_value=mock_info):
+            result = client.fetch_series("GDPC1")
+
+        # Verify retry was attempted (at least 2 calls before success on 3rd)
+        assert call_count >= 3, (
+            f"Expected at least 3 attempts (2 retries + success), got {call_count}"
         )
+        # Should have eventually succeeded
+        assert isinstance(result, tuple)
 
 
 class TestRateLimitDelay:
