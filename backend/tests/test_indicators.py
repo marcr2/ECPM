@@ -1,8 +1,7 @@
 """Tests for indicator computation -- FEAT-02 through FEAT-09.
 
-These tests define the expected behavior of concrete methodology mappers.
-They are skipped until Plan 02-02 implements the Shaikh/Tonak and Kliman
-mappers. Each test uses known input values to verify formula correctness.
+These tests verify the concrete Shaikh/Tonak and Kliman methodology mappers.
+Each test uses known input values to verify formula correctness.
 """
 
 from __future__ import annotations
@@ -10,6 +9,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+
+from ecpm.indicators.shaikh_tonak import ShaikhTonakMapper
+from ecpm.indicators.kliman import KlimanMapper
+from ecpm.indicators.registry import MethodologyRegistry
 
 # ---------------------------------------------------------------------------
 # Shared mock NIPA data fixture
@@ -83,17 +86,40 @@ def mock_nipa_data() -> dict[str, pd.Series]:
         name="nominal_gdp",
     )
 
+    # Financial series for ratio and debt tests
+    data["financial_assets"] = pd.Series(
+        [5000.0, 5500.0, 6000.0], index=annual_idx, name="financial_assets"
+    )
+    data["real_assets"] = pd.Series(
+        [2000.0, 2100.0, 2200.0], index=annual_idx, name="real_assets"
+    )
+    data["debt_service"] = pd.Series(
+        [100.0, 120.0, 130.0], index=annual_idx, name="debt_service"
+    )
+    data["corporate_income"] = pd.Series(
+        [500.0, 550.0, 600.0], index=annual_idx, name="corporate_income"
+    )
+
     return data
 
 
+@pytest.fixture(autouse=True)
+def _register_mappers():
+    """Register both real mappers and reset after each test."""
+    MethodologyRegistry.reset()
+    MethodologyRegistry.register(ShaikhTonakMapper())
+    MethodologyRegistry.register(KlimanMapper())
+    yield
+    MethodologyRegistry.reset()
+
+
 # ---------------------------------------------------------------------------
-# Core indicator computation tests (awaiting Plan 02-02)
+# Shaikh/Tonak core indicator computation tests
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
-class TestRateOfProfit:
-    """Rate of profit = S / (C + V) with known values."""
+class TestShaikhTonakRateOfProfit:
+    """Rate of profit = S / (C + V) with Shaikh/Tonak (current-cost C)."""
 
     def test_rate_of_profit_known_values(self, mock_nipa_data: dict[str, pd.Series]) -> None:
         """S=400, C=3000, V=600 -> r = 400 / (3000+600) = 0.1111...
@@ -102,9 +128,6 @@ class TestRateOfProfit:
         Year 2020: S = 1000 - 600 = 400, C = 3000, V = 600
         r = 400 / (3000 + 600) = 0.1111
         """
-        # Import will work once Plan 02-02 provides a concrete mapper
-        from ecpm.indicators.registry import MethodologyRegistry
-
         mapper = MethodologyRegistry.default()
         result = mapper.compute_rate_of_profit(mock_nipa_data)
 
@@ -113,15 +136,22 @@ class TestRateOfProfit:
         # First year: S = 1000 - 600 = 400; C + V = 3000 + 600 = 3600
         assert result.iloc[0] == pytest.approx(400 / 3600, rel=1e-3)
 
+    def test_rate_of_profit_all_years(self, mock_nipa_data: dict[str, pd.Series]) -> None:
+        """All three years should produce correct rates."""
+        mapper = MethodologyRegistry.default()
+        result = mapper.compute_rate_of_profit(mock_nipa_data)
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
-class TestOCC:
-    """OCC = C / V with known values."""
+        # Year 2021: S = 1100 - 650 = 450, C = 3200, V = 650
+        assert result.iloc[1] == pytest.approx(450 / (3200 + 650), rel=1e-3)
+        # Year 2022: S = 1200 - 700 = 500, C = 3400, V = 700
+        assert result.iloc[2] == pytest.approx(500 / (3400 + 700), rel=1e-3)
+
+
+class TestShaikhTonakOCC:
+    """OCC = C / V with Shaikh/Tonak (current-cost C)."""
 
     def test_occ_known_values(self, mock_nipa_data: dict[str, pd.Series]) -> None:
         """C=3000, V=600 -> OCC = 3000/600 = 5.0."""
-        from ecpm.indicators.registry import MethodologyRegistry
-
         mapper = MethodologyRegistry.default()
         result = mapper.compute_occ(mock_nipa_data)
 
@@ -130,16 +160,13 @@ class TestOCC:
         assert result.iloc[0] == pytest.approx(3000 / 600, rel=1e-3)
 
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
-class TestRateOfSurplusValue:
+class TestShaikhTonakRateOfSurplusValue:
     """Rate of surplus value = S / V."""
 
     def test_rate_of_surplus_value_known_values(
         self, mock_nipa_data: dict[str, pd.Series]
     ) -> None:
         """S = 1000-600 = 400, V = 600 -> s/v = 400/600 = 0.6667."""
-        from ecpm.indicators.registry import MethodologyRegistry
-
         mapper = MethodologyRegistry.default()
         result = mapper.compute_rate_of_surplus_value(mock_nipa_data)
 
@@ -148,16 +175,13 @@ class TestRateOfSurplusValue:
         assert result.iloc[0] == pytest.approx(400 / 600, rel=1e-3)
 
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
-class TestMassOfProfit:
+class TestShaikhTonakMassOfProfit:
     """Mass of profit = absolute surplus value."""
 
     def test_mass_of_profit_returns_absolute_surplus(
         self, mock_nipa_data: dict[str, pd.Series]
     ) -> None:
         """Year 2020: S = 1000 - 600 = 400."""
-        from ecpm.indicators.registry import MethodologyRegistry
-
         mapper = MethodologyRegistry.default()
         result = mapper.compute_mass_of_profit(mock_nipa_data)
 
@@ -166,7 +190,152 @@ class TestMassOfProfit:
         assert result.iloc[0] == pytest.approx(400.0, rel=1e-3)
 
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
+# ---------------------------------------------------------------------------
+# Kliman TSSI core indicator computation tests
+# ---------------------------------------------------------------------------
+
+
+class TestKlimanRateOfProfit:
+    """Rate of profit with Kliman (historical-cost C) should differ from Shaikh/Tonak."""
+
+    def test_rate_of_profit_uses_historical_cost(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """S=400, C_hist=2500, V=600 -> r = 400 / (2500+600) = 0.1290...
+
+        Different from Shaikh/Tonak because historical-cost C is lower.
+        """
+        mapper = MethodologyRegistry.get("kliman")
+        result = mapper.compute_rate_of_profit(mock_nipa_data)
+
+        assert isinstance(result, pd.Series)
+        assert len(result) == 3
+        # Historical-cost C = 2500, not 3000
+        assert result.iloc[0] == pytest.approx(400 / (2500 + 600), rel=1e-3)
+
+    def test_kliman_rate_differs_from_shaikh_tonak(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """Kliman and Shaikh/Tonak produce different rate of profit values."""
+        st_mapper = MethodologyRegistry.get("shaikh-tonak")
+        kl_mapper = MethodologyRegistry.get("kliman")
+
+        st_result = st_mapper.compute_rate_of_profit(mock_nipa_data)
+        kl_result = kl_mapper.compute_rate_of_profit(mock_nipa_data)
+
+        # Kliman rate should be higher (lower C in denominator)
+        assert kl_result.iloc[0] > st_result.iloc[0]
+
+
+class TestKlimanOCC:
+    """OCC with Kliman uses historical-cost C."""
+
+    def test_occ_uses_historical_cost(self, mock_nipa_data: dict[str, pd.Series]) -> None:
+        """C_hist=2500, V=600 -> OCC = 2500/600 = 4.1667."""
+        mapper = MethodologyRegistry.get("kliman")
+        result = mapper.compute_occ(mock_nipa_data)
+
+        assert isinstance(result, pd.Series)
+        assert result.iloc[0] == pytest.approx(2500 / 600, rel=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# Mapper metadata tests
+# ---------------------------------------------------------------------------
+
+
+class TestShaikhTonakMetadata:
+    """Shaikh/Tonak mapper properties and documentation."""
+
+    def test_name_and_slug(self) -> None:
+        mapper = ShaikhTonakMapper()
+        assert mapper.name == "Shaikh/Tonak"
+        assert mapper.slug == "shaikh-tonak"
+
+    def test_get_required_series_returns_fred_ids(self) -> None:
+        mapper = ShaikhTonakMapper()
+        series = mapper.get_required_series()
+        assert isinstance(series, list)
+        assert len(series) >= 3  # At least NI, compensation, fixed assets
+        assert "A053RC1Q027SBEA" in series  # National Income
+        assert "A576RC1" in series  # Compensation
+        assert "K1NTOTL1SI000" in series  # Current-cost net fixed assets
+
+    def test_get_documentation_returns_indicator_docs(self) -> None:
+        mapper = ShaikhTonakMapper()
+        docs = mapper.get_documentation()
+        assert isinstance(docs, list)
+        assert len(docs) == 4  # 4 core indicators
+        slugs = {d.slug for d in docs}
+        assert "rate_of_profit" in slugs
+        assert "occ" in slugs
+        assert "rate_of_surplus_value" in slugs
+        assert "mass_of_profit" in slugs
+
+    def test_documentation_has_latex_formulas(self) -> None:
+        mapper = ShaikhTonakMapper()
+        docs = mapper.get_documentation()
+        for doc in docs:
+            assert doc.formula_latex, f"Missing LaTeX for {doc.slug}"
+            assert "frac" in doc.formula_latex or "=" in doc.formula_latex
+
+    def test_documentation_has_nipa_mappings(self) -> None:
+        mapper = ShaikhTonakMapper()
+        docs = mapper.get_documentation()
+        for doc in docs:
+            assert len(doc.mappings) > 0, f"Missing NIPA mappings for {doc.slug}"
+
+    def test_documentation_has_citations(self) -> None:
+        mapper = ShaikhTonakMapper()
+        docs = mapper.get_documentation()
+        for doc in docs:
+            assert len(doc.citations) > 0, f"Missing citations for {doc.slug}"
+            assert any("Shaikh" in c for c in doc.citations)
+
+
+class TestKlimanMetadata:
+    """Kliman mapper properties and documentation."""
+
+    def test_name_and_slug(self) -> None:
+        mapper = KlimanMapper()
+        assert mapper.name == "Kliman TSSI"
+        assert mapper.slug == "kliman"
+
+    def test_get_required_series_has_historical_cost(self) -> None:
+        mapper = KlimanMapper()
+        series = mapper.get_required_series()
+        assert isinstance(series, list)
+        # Should have historical-cost series, not current-cost
+        assert "K1NTOTL1SI000" not in series  # NOT current-cost
+        # Has the equivalent historical-cost series
+        assert any("HI" in s or "HIST" in s.upper() or "K1NTOTL1HI" in s for s in series)
+
+    def test_get_documentation_has_kliman_citations(self) -> None:
+        mapper = KlimanMapper()
+        docs = mapper.get_documentation()
+        for doc in docs:
+            assert any("Kliman" in c for c in doc.citations)
+
+
+class TestRegistryIntegration:
+    """Both mappers registered and discoverable."""
+
+    def test_both_mappers_registered(self) -> None:
+        all_mappers = MethodologyRegistry.list_all()
+        slugs = {m.slug for m in all_mappers}
+        assert "shaikh-tonak" in slugs
+        assert "kliman" in slugs
+
+    def test_default_is_shaikh_tonak(self) -> None:
+        default = MethodologyRegistry.default()
+        assert default.slug == "shaikh-tonak"
+
+
+# ---------------------------------------------------------------------------
+# Productivity-wage gap (methodology-independent, on ABC default)
+# ---------------------------------------------------------------------------
+
+
 class TestProductivityWageGap:
     """Productivity-wage gap = ratio of productivity index to compensation index."""
 
@@ -177,8 +346,6 @@ class TestProductivityWageGap:
 
         Gap should increase: output index / comp index > 100.
         """
-        from ecpm.indicators.registry import MethodologyRegistry
-
         mapper = MethodologyRegistry.default()
         result = mapper.compute_productivity_wage_gap(mock_nipa_data, window=1)
 
@@ -190,7 +357,11 @@ class TestProductivityWageGap:
         assert result.iloc[-1] > 100.0
 
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
+# ---------------------------------------------------------------------------
+# Credit-GDP gap (methodology-independent, on ABC default)
+# ---------------------------------------------------------------------------
+
+
 class TestCreditGDPGap:
     """Credit-to-GDP gap via HP filter trend extraction."""
 
@@ -201,8 +372,6 @@ class TestCreditGDPGap:
 
         Gap = actual ratio - HP trend. Should not be all zeros.
         """
-        from ecpm.indicators.registry import MethodologyRegistry
-
         mapper = MethodologyRegistry.default()
         result = mapper.compute_credit_gdp_gap(mock_nipa_data)
 
@@ -212,41 +381,56 @@ class TestCreditGDPGap:
         assert result.std() > 0.01
 
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
+# ---------------------------------------------------------------------------
+# Financial-to-real ratio (methodology-independent, on ABC default)
+# ---------------------------------------------------------------------------
+
+
 class TestFinancialRealRatio:
     """Financial-to-real asset ratio."""
 
-    def test_financial_real_ratio_computes_correctly(self) -> None:
+    def test_financial_real_ratio_computes_correctly(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
         """financial_assets=5000, real_assets=2000 -> ratio=2.5."""
-        from ecpm.indicators.registry import MethodologyRegistry
-
-        idx = pd.date_range("2020", periods=3, freq="YE")
-        data = {
-            "financial_assets": pd.Series([5000.0, 5500.0, 6000.0], index=idx),
-            "real_assets": pd.Series([2000.0, 2100.0, 2200.0], index=idx),
-        }
-
         mapper = MethodologyRegistry.default()
-        result = mapper.compute_financial_real_ratio(data)
+        result = mapper.compute_financial_real_ratio(mock_nipa_data)
 
         assert isinstance(result, pd.Series)
         assert len(result) == 3
         assert result.iloc[0] == pytest.approx(5000 / 2000, rel=1e-3)
 
 
-@pytest.mark.skip(reason="Awaiting Plan 02-02 implementation")
+# ---------------------------------------------------------------------------
+# Debt service ratio (methodology-independent, on ABC default)
+# ---------------------------------------------------------------------------
+
+
+class TestDebtServiceRatio:
+    """Corporate debt service ratio."""
+
+    def test_debt_service_ratio_computes_correctly(
+        self, mock_nipa_data: dict[str, pd.Series]
+    ) -> None:
+        """debt_service=100, corporate_income=500 -> ratio=20%."""
+        mapper = MethodologyRegistry.default()
+        result = mapper.compute_debt_service_ratio(mock_nipa_data)
+
+        assert isinstance(result, pd.Series)
+        assert len(result) == 3
+        assert result.iloc[0] == pytest.approx(100 / 500 * 100, rel=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# Frequency alignment
+# ---------------------------------------------------------------------------
+
+
 class TestFrequencyAlignment:
     """LOCF frequency alignment for mixed-frequency inputs."""
 
     def test_locf_alignment_for_mixed_frequency(self) -> None:
-        """Verify that LOCF strategy is used for mixed-frequency alignment.
-
-        Annual capital stock aligned with quarterly income data should
-        produce meaningful ratios without NaN.
-        """
+        """Verify that LOCF strategy is used for mixed-frequency alignment."""
         from ecpm.indicators.definitions import FREQUENCY_STRATEGY
 
         assert FREQUENCY_STRATEGY == "LOCF"
-
-        # When mappers exist, they should handle mixed-frequency via LOCF
-        # This test will be expanded in Plan 02-02
