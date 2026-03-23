@@ -38,16 +38,28 @@ _FRED_TO_KEY: dict[str, str] = {
     "K1NTOTL1HI000": "net_fixed_assets_historical",
 }
 
-# Financial series (methodology-independent)
-_FINANCIAL_FRED_TO_KEY: dict[str, str] = {
-    "OPHNFB": "output_per_hour",
-    "PRS85006092": "real_compensation_per_hour",
-    "BOGZ1FL073164003Q": "credit_total",
-    "GDP": "nominal_gdp",
-    "BOGZ1FL073164003Q": "financial_assets",  # proxy
-    "K1NTOTL1SI000": "real_assets",  # tangible assets
-    "BOGZ1FA096130001Q": "debt_service",
-    "A445RC1Q027SBEA": "corporate_income",
+# Per-indicator financial FRED-to-key mappings.
+# Each financial indicator has its own mapping because the same FRED series
+# can map to different descriptive keys depending on context (e.g.,
+# BOGZ1FL073164003Q -> "credit_total" for credit-GDP gap, but
+# "financial_assets" for financial-real ratio).
+_FINANCIAL_INDICATOR_MAPPINGS: dict[str, dict[str, str]] = {
+    IndicatorSlug.productivity_wage_gap: {
+        "OPHNFB": "output_per_hour",
+        "PRS85006092": "real_compensation_per_hour",
+    },
+    IndicatorSlug.credit_gdp_gap: {
+        "BOGZ1FL073164003Q": "credit_total",
+        "GDP": "nominal_gdp",
+    },
+    IndicatorSlug.financial_real_ratio: {
+        "BOGZ1FL073164003Q": "financial_assets",
+        "K1NTOTL1SI000": "real_assets",
+    },
+    IndicatorSlug.debt_service_ratio: {
+        "BOGZ1FA096130001Q": "debt_service",
+        "A445RC1Q027SBEA": "corporate_income",
+    },
 }
 
 # Financial indicator slugs and their required FRED series
@@ -102,7 +114,9 @@ def _get_required_series_ids(slug: str, mapper: Any) -> list[str]:
 
 
 async def _fetch_series_from_db(
-    series_ids: list[str], db: AsyncSession
+    series_ids: list[str],
+    db: AsyncSession,
+    key_mapping: dict[str, str] | None = None,
 ) -> dict[str, pd.Series]:
     """Query observations from the database and build a data dict.
 
@@ -113,11 +127,15 @@ async def _fetch_series_from_db(
     Args:
         series_ids: List of FRED series IDs to fetch.
         db: Async database session.
+        key_mapping: Optional dict mapping FRED IDs to descriptive keys.
+            If None, uses the combined core + financial mapping (note:
+            overlapping keys will be resolved in favor of financial).
 
     Returns:
         Dict mapping descriptive keys to pd.Series indexed by date.
     """
-    all_mappings = {**_FRED_TO_KEY, **_FINANCIAL_FRED_TO_KEY}
+    if key_mapping is None:
+        key_mapping = {**_FRED_TO_KEY, **_FINANCIAL_FRED_TO_KEY}
     data: dict[str, pd.Series] = {}
 
     for series_id in series_ids:
@@ -142,7 +160,7 @@ async def _fetch_series_from_db(
             )
 
         # Map to descriptive key if known, otherwise use series_id
-        key = all_mappings.get(series_id, series_id)
+        key = key_mapping.get(series_id, series_id)
         data[key] = series
 
     return data
@@ -210,9 +228,18 @@ async def compute_indicator(
 
     method = getattr(mapper, method_name)
 
-    # Fetch required series from database
+    # Fetch required series from database with the correct key mapping.
+    # Core indicators use _FRED_TO_KEY; financial indicators use their own
+    # per-indicator mapping from _FINANCIAL_INDICATOR_MAPPINGS.
+    # This avoids key collisions where the same FRED series ID maps to
+    # different descriptive keys in different contexts (e.g., K1NTOTL1SI000
+    # maps to "net_fixed_assets_current" for core, "real_assets" for financial).
     series_ids = _get_required_series_ids(slug, mapper)
-    data = await _fetch_series_from_db(series_ids, db)
+    if _is_financial_indicator(slug):
+        mapping = _FINANCIAL_INDICATOR_MAPPINGS[slug]
+    else:
+        mapping = _FRED_TO_KEY
+    data = await _fetch_series_from_db(series_ids, db, key_mapping=mapping)
 
     # Compute indicator
     logger.info(
