@@ -63,8 +63,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **DASH-01**: User can view interactive time-series line charts with zoom, pan, and date range selection
 - [x] **DASH-02**: User can overlay multiple indicators on the same chart with dual y-axes
 - [x] **DASH-03**: User can see crisis episode annotations (vertical lines/shaded regions) for known historical crises
-- [ ] **DASH-04**: User can view an indicator overview/summary page showing current state of all computed indicators
-- [ ] **DASH-05**: User can view methodology documentation explaining each NIPA-to-Marx mapping and its theoretical basis
+- [x] **DASH-04**: User can view an indicator overview/summary page showing current state of all computed indicators
+- [x] **DASH-05**: User can view methodology documentation explaining each NIPA-to-Marx mapping and its theoretical basis
 - [ ] **DASH-06**: User can view the Composite Crisis Probability Index with mechanism decomposition gauge
 - [ ] **DASH-07**: User can view a Leontief I-O reproduction schema visualization (heatmap + Sankey/chord diagram)
 - [x] **DASH-08**: Dashboard shows loading states and error boundaries for all data-dependent components
@@ -163,8 +163,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-01 | Phase 2 | Complete |
 | DASH-02 | Phase 2 | Complete |
 | DASH-03 | Phase 2 | Complete |
-| DASH-04 | Phase 2 | Pending |
-| DASH-05 | Phase 2 | Pending |
+| DASH-04 | Phase 2 | Complete |
+| DASH-05 | Phase 2 | Complete |
 | DASH-06 | Phase 3 | Pending |
 | DASH-07 | Phase 4 | Pending |
 | DASH-08 | Phase 2 | Complete |
