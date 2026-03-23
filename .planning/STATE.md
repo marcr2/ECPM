@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Active
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-03-23T21:02:22Z"
-last_activity: 2026-03-23 -- Completed 02-04-PLAN.md (Indicator data and methodology documentation API endpoints)
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-23T21:16:57.562Z"
+last_activity: 2026-03-23 -- Completed 03-01-PLAN.md (Modeling foundation - schemas, test scaffolds, synthetic fixtures)
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 12
-  completed_plans: 12
-  percent: 86
+  completed_phases: 2
+  total_plans: 17
+  completed_plans: 13
+  percent: 76
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Ingest real macroeconomic data (FRED/BEA) and compute Marxist economic indicators visible in an interactive dashboard
-**Current focus:** Phase 2 in progress: Feature Engineering and Core Dashboard
+**Current focus:** Phase 3 in progress: Predictive Modeling and Crisis Index
 
 ## Current Position
 
-Phase: 2 of 5 (Feature Engineering and Core Dashboard)
-Plan: 5 of 5 in current phase (02-01, 02-02, 02-03, 02-04 COMPLETE)
+Phase: 3 of 5 (Predictive Modeling and Crisis Index)
+Plan: 1 of 5 in current phase (03-01 COMPLETE)
 Status: Active
-Last activity: 2026-03-23 -- Completed 02-04-PLAN.md (Indicator data and methodology documentation API endpoints)
+Last activity: 2026-03-23 -- Completed 03-01-PLAN.md (Modeling foundation - schemas, test scaffolds, synthetic fixtures)
 
-Progress: [████████░░] 86%
+Progress: [████████░░] 76%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: ~5min
-- Total execution time: ~0.8 hours
+- Total execution time: ~0.9 hours
 
 **By Phase:**
 
@@ -45,9 +45,10 @@ Progress: [████████░░] 86%
 |-------|-------|-------|----------|
 | 01 | 7 | ~33min | ~5min |
 | 02 | 5 | ~30min | ~6min |
+| 03 | 1 | ~4min | ~4min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01, 02-02, 02-03, 02-04
+- Last 5 plans: 02-02, 02-03, 02-04, 03-01
 - Trend: Steady
 
 *Updated after each plan completion*
@@ -58,6 +59,7 @@ Progress: [████████░░] 86%
 | Phase 02 P02 | 8min | 2 tasks | 7 files |
 | Phase 02 P03 | 6min | 2 tasks | 9 files |
 | Phase 02 P04 | 12min | 2 tasks | 5 files |
+| Phase 03 P01 | 4min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -91,6 +93,9 @@ Recent decisions affecting current work:
 - [02-03]: Next.js 16 error.tsx uses unstable_retry (not reset) per framework docs
 - [02-04]: Methodology routes merged into indicators router to prevent FastAPI dynamic route capture conflict
 - [02-04]: Per-indicator financial FRED-to-key mappings replace global dict to resolve K1NTOTL1SI000/BOGZ1FL073164003Q ambiguity
+- [03-01]: pytest.importorskip at module level for clean skip-marking of unimplemented modeling modules
+- [03-01]: numpy default_rng(42) for reproducible synthetic data (modern Generator API)
+- [03-01]: Synthetic indicator data uses realistic economic trends for domain validity in tests
 
 ### Pending Todos
 
@@ -104,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T21:02:22Z
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-03-23T21:16:57.560Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None

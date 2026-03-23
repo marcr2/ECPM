@@ -33,14 +33,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Predictive Modeling
 
-- [ ] **MODL-01**: System runs VAR models on key Marxist indicators with proper lag selection (AIC/BIC/HQIC)
-- [ ] **MODL-02**: System performs mandatory stationarity preprocessing (ADF + KPSS tests) before any VAR modeling
-- [ ] **MODL-03**: System runs SVAR with theoretically motivated identification restrictions from Marxist causal ordering
-- [ ] **MODL-04**: System produces forecasts with confidence intervals / uncertainty quantification
-- [ ] **MODL-05**: System backtests against the 2007-2009 Global Financial Crisis (indicators should rise 12-24 months prior)
-- [ ] **MODL-06**: System implements Markov regime-switching models to detect crisis vs. normal vs. stagnation regimes
-- [ ] **MODL-07**: System produces a Composite Crisis Probability Index synthesizing TRPF, realization, and financial fragility indicators
-- [ ] **MODL-08**: Crisis Probability Index is decomposable by crisis mechanism (shows which typology is driving the signal)
+- [x] **MODL-01**: System runs VAR models on key Marxist indicators with proper lag selection (AIC/BIC/HQIC)
+- [x] **MODL-02**: System performs mandatory stationarity preprocessing (ADF + KPSS tests) before any VAR modeling
+- [x] **MODL-03**: System runs SVAR with theoretically motivated identification restrictions from Marxist causal ordering
+- [x] **MODL-04**: System produces forecasts with confidence intervals / uncertainty quantification
+- [x] **MODL-05**: System backtests against the 2007-2009 Global Financial Crisis (indicators should rise 12-24 months prior)
+- [x] **MODL-06**: System implements Markov regime-switching models to detect crisis vs. normal vs. stagnation regimes
+- [x] **MODL-07**: System produces a Composite Crisis Probability Index synthesizing TRPF, realization, and financial fragility indicators
+- [x] **MODL-08**: Crisis Probability Index is decomposable by crisis mechanism (shows which typology is driving the signal)
 
 ### Structural Analysis
 
@@ -65,7 +65,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **DASH-03**: User can see crisis episode annotations (vertical lines/shaded regions) for known historical crises
 - [x] **DASH-04**: User can view an indicator overview/summary page showing current state of all computed indicators
 - [x] **DASH-05**: User can view methodology documentation explaining each NIPA-to-Marx mapping and its theoretical basis
-- [ ] **DASH-06**: User can view the Composite Crisis Probability Index with mechanism decomposition gauge
+- [x] **DASH-06**: User can view the Composite Crisis Probability Index with mechanism decomposition gauge
 - [ ] **DASH-07**: User can view a Leontief I-O reproduction schema visualization (heatmap + Sankey/chord diagram)
 - [x] **DASH-08**: Dashboard shows loading states and error boundaries for all data-dependent components
 
@@ -142,14 +142,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FEAT-07 | Phase 2 | Complete |
 | FEAT-08 | Phase 2 | Complete |
 | FEAT-09 | Phase 2 | Complete |
-| MODL-01 | Phase 3 | Pending |
-| MODL-02 | Phase 3 | Pending |
-| MODL-03 | Phase 3 | Pending |
-| MODL-04 | Phase 3 | Pending |
-| MODL-05 | Phase 3 | Pending |
-| MODL-06 | Phase 3 | Pending |
-| MODL-07 | Phase 3 | Pending |
-| MODL-08 | Phase 3 | Pending |
+| MODL-01 | Phase 3 | Complete |
+| MODL-02 | Phase 3 | Complete |
+| MODL-03 | Phase 3 | Complete |
+| MODL-04 | Phase 3 | Complete |
+| MODL-05 | Phase 3 | Complete |
+| MODL-06 | Phase 3 | Complete |
+| MODL-07 | Phase 3 | Complete |
+| MODL-08 | Phase 3 | Complete |
 | STRC-01 | Phase 4 | Pending |
 | STRC-02 | Phase 4 | Pending |
 | STRC-03 | Phase 4 | Pending |
@@ -165,7 +165,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-03 | Phase 2 | Complete |
 | DASH-04 | Phase 2 | Complete |
 | DASH-05 | Phase 2 | Complete |
-| DASH-06 | Phase 3 | Pending |
+| DASH-06 | Phase 3 | Complete |
 | DASH-07 | Phase 4 | Pending |
 | DASH-08 | Phase 2 | Complete |
 | INFR-01 | Phase 1 | Complete |
