@@ -51,12 +51,14 @@ Plans:
   3. User can see historical crisis episodes (1929, 1973, 2008, etc.) as annotations on all time-series charts for visual pattern matching
   4. User can view an indicator overview page showing the current state of all computed indicators at a glance
   5. User can read methodology documentation explaining each NIPA-to-Marx mapping with specific table/line item references and theoretical citations
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md -- Backend interface contracts: ABC, registry, definitions, schemas, test scaffolds
+- [ ] 02-02-PLAN.md -- Backend methodology implementations: Shaikh/Tonak + Kliman mappers, financial fragility, computation orchestrator
+- [ ] 02-03-PLAN.md -- Frontend dependencies + reusable chart components: Recharts, KaTeX, crisis annotations, sparkline, loading/error states
+- [ ] 02-04-PLAN.md -- Backend API endpoints: indicator data, methodology docs, Redis caching
+- [ ] 02-05-PLAN.md -- Frontend indicator pages: overview dashboard, detail pages, methodology docs, comparison view, sidebar update
 
 ### Phase 3: Predictive Modeling and Crisis Index
 **Goal**: User can see econometric forecasts of Marxist indicators, detect crisis regimes, and monitor a Composite Crisis Probability Index that decomposes by crisis mechanism
@@ -111,8 +113,8 @@ Phases execute in numeric order. Phase 4 depends on Phase 1 (not Phase 3), so Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Data Ingestion | 6/7 | Gap closure pending | 2026-03-23 |
-| 2. Feature Engineering and Core Dashboard | 0/3 | Not started | - |
+| 1. Foundation and Data Ingestion | 7/7 | Complete | 2026-03-23 |
+| 2. Feature Engineering and Core Dashboard | 0/5 | Planned | - |
 | 3. Predictive Modeling and Crisis Index | 0/3 | Not started | - |
 | 4. Structural Analysis | 0/2 | Not started | - |
 | 5. Corporate Concentration Analysis | 0/2 | Not started | - |
