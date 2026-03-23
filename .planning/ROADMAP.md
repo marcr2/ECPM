@@ -30,13 +30,15 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can query FastAPI endpoints and receive stored time-series data with metadata (units, frequency, source, last updated)
   4. System automatically re-fetches data on a configurable schedule without manual intervention, with exponential backoff on API failures
   5. User can see the Next.js frontend loads and connects to the backend API (skeleton page, no visualizations yet)
-**Plans:** 4 plans
+**Plans:** 6 plans
 
 Plans:
-- [ ] 01-01-PLAN.md -- Docker Compose stack, project scaffolding, TimescaleDB schema, Alembic migrations, series config
-- [ ] 01-02-PLAN.md -- FRED/BEA ingestion clients, pipeline orchestrator, Celery scheduling, CLI
-- [ ] 01-03-PLAN.md -- FastAPI REST endpoints, Redis caching, SSE streaming, status monitoring
-- [ ] 01-04-PLAN.md -- Next.js frontend skeleton, dark theme, navigation shell, data overview table
+- [ ] 01-00-PLAN.md -- Wave 0 test infrastructure (all test scaffold files and conftest)
+- [ ] 01-01-PLAN.md -- Docker Compose stack, Dockerfiles, env template, pyproject.toml
+- [ ] 01-02-PLAN.md -- Python backend package, models, Alembic migrations, series config
+- [ ] 01-03-PLAN.md -- FRED/BEA ingestion clients, pipeline orchestrator, Celery scheduling, CLI
+- [ ] 01-04-PLAN.md -- FastAPI REST endpoints, Redis caching, SSE streaming, status monitoring
+- [ ] 01-05-PLAN.md -- Next.js frontend skeleton, dark theme, navigation shell, data overview table
 
 ### Phase 2: Feature Engineering and Core Dashboard
 **Goal**: User can explore computed Marxist economic indicators (rate of profit, OCC, rate of surplus value, productivity-wage gap, financial fragility) in an interactive dashboard with documented methodology
@@ -108,7 +110,7 @@ Phases execute in numeric order. Phase 4 depends on Phase 1 (not Phase 3), so Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Data Ingestion | 0/4 | Not started | - |
+| 1. Foundation and Data Ingestion | 0/6 | Not started | - |
 | 2. Feature Engineering and Core Dashboard | 0/3 | Not started | - |
 | 3. Predictive Modeling and Crisis Index | 0/3 | Not started | - |
 | 4. Structural Analysis | 0/2 | Not started | - |
