@@ -36,7 +36,8 @@ except ImportError:
     _HAS_PANDAS = False
 
 try:
-    from ecpm.database import Base, get_db  # noqa: F401 -- used by downstream tests
+    from ecpm.models import Base  # noqa: F401 -- used by downstream tests
+    from ecpm.database import get_db  # noqa: F401 -- used by downstream tests
 
     _HAS_ECPM_DB = True
 except ImportError:
