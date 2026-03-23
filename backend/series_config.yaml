@@ -1,0 +1,269 @@
+# ECPM Series Configuration
+# Defines all FRED and BEA series to ingest.
+# Series list is config-driven so researchers can expand coverage without code changes.
+
+fred:
+  # --- GDP and Output ---
+  - id: GDP
+    name: Gross Domestic Product
+    category: gdp
+  - id: GDPC1
+    name: Real Gross Domestic Product
+    category: gdp
+  - id: GDPDEF
+    name: GDP Implicit Price Deflator
+    category: gdp
+  - id: GNPC96
+    name: Real Gross National Product
+    category: gdp
+  - id: A939RX0Q048SBEA
+    name: Real Gross National Income Per Capita
+    category: gdp
+
+  # --- GDP Components ---
+  - id: PCEC96
+    name: Real Personal Consumption Expenditures
+    category: gdp_components
+  - id: GPDI
+    name: Gross Private Domestic Investment
+    category: gdp_components
+  - id: GPDIC1
+    name: Real Gross Private Domestic Investment
+    category: gdp_components
+  - id: PNFI
+    name: Private Nonresidential Fixed Investment
+    category: gdp_components
+  - id: PRFI
+    name: Private Residential Fixed Investment
+    category: gdp_components
+  - id: NETEXP
+    name: Net Exports of Goods and Services
+    category: gdp_components
+  - id: GCE
+    name: Government Consumption Expenditures and Gross Investment
+    category: gdp_components
+
+  # --- Corporate Profits and Income ---
+  - id: CP
+    name: Corporate Profits After Tax
+    category: profits
+  - id: CPATAX
+    name: Corporate Profits After Tax (without IVA and CCAdj)
+    category: profits
+  - id: A445RC1Q027SBEA
+    name: Corporate Profits Before Tax
+    category: profits
+  - id: W270RE1A156NBEA
+    name: Corporate Profits as Share of GDI
+    category: profits
+  - id: A053RC1Q027SBEA
+    name: National Income
+    category: profits
+  - id: PROPINC
+    name: Proprietors Income
+    category: profits
+  - id: A576RC1
+    name: Compensation of Employees
+    category: profits
+  - id: W209RC1Q156SBEA
+    name: Net Operating Surplus
+    category: profits
+  - id: WASCUR
+    name: Wages and Salaries
+    category: profits
+
+  # --- Capital and Investment ---
+  - id: K1TTOTL1ES000
+    name: Current-Cost Net Stock of Fixed Assets and Consumer Durable Goods
+    category: capital
+  - id: K1NTOTL1SI000
+    name: Current-Cost Net Stock of Private Fixed Assets
+    category: capital
+  - id: K1N31GENI1ES000
+    name: Current-Cost Net Stock of Private Nonresidential Fixed Assets
+    category: capital
+  - id: Y033RC1Q027SBEA
+    name: Consumption of Fixed Capital
+    category: capital
+  - id: M318501Q027NBEA
+    name: Gross Value Added of Nonfinancial Corporate Business
+    category: capital
+
+  # --- Labor Market ---
+  - id: UNRATE
+    name: Unemployment Rate
+    category: labor
+  - id: PAYEMS
+    name: All Employees Total Nonfarm
+    category: labor
+  - id: CIVPART
+    name: Civilian Labor Force Participation Rate
+    category: labor
+  - id: AWHNONAG
+    name: Average Weekly Hours of Production Workers
+    category: labor
+  - id: CES0500000003
+    name: Average Hourly Earnings of Production Workers
+    category: labor
+  - id: OPHNFB
+    name: Nonfarm Business Sector Output Per Hour
+    category: labor
+  - id: ULCNFB
+    name: Nonfarm Business Sector Unit Labor Cost
+    category: labor
+  - id: PRS85006092
+    name: Nonfarm Business Sector Real Compensation Per Hour
+    category: labor
+  - id: CLF16OV
+    name: Civilian Labor Force Level
+    category: labor
+  - id: LNS12000060
+    name: Employment Level (25-54 yrs)
+    category: labor
+
+  # --- Prices and Inflation ---
+  - id: CPIAUCSL
+    name: Consumer Price Index for All Urban Consumers
+    category: prices
+  - id: CPILFESL
+    name: Core CPI (Less Food and Energy)
+    category: prices
+  - id: PPIACO
+    name: Producer Price Index All Commodities
+    category: prices
+  - id: PCEPILFE
+    name: PCE Excluding Food and Energy (Chain-Type)
+    category: prices
+
+  # --- Interest Rates and Money ---
+  - id: FEDFUNDS
+    name: Effective Federal Funds Rate
+    category: interest_rates
+  - id: DGS10
+    name: 10-Year Treasury Constant Maturity Rate
+    category: interest_rates
+  - id: DGS2
+    name: 2-Year Treasury Constant Maturity Rate
+    category: interest_rates
+  - id: T10Y2Y
+    name: 10-Year Treasury Minus 2-Year Treasury Spread
+    category: interest_rates
+  - id: BAA10Y
+    name: Baa Corporate Bond Yield Relative to 10-Year Treasury
+    category: interest_rates
+  - id: AAA
+    name: Moody's Seasoned Aaa Corporate Bond Yield
+    category: interest_rates
+  - id: BAA
+    name: Moody's Seasoned Baa Corporate Bond Yield
+    category: interest_rates
+  - id: M2SL
+    name: M2 Money Stock
+    category: money_supply
+  - id: BOGMBASE
+    name: Monetary Base Total
+    category: money_supply
+  - id: TOTRESNS
+    name: Total Reserves of Depository Institutions
+    category: money_supply
+
+  # --- Industrial Production ---
+  - id: INDPRO
+    name: Industrial Production Total Index
+    category: industrial
+  - id: TCU
+    name: Capacity Utilization Total Industry
+    category: industrial
+  - id: MCUMFN
+    name: Capacity Utilization Manufacturing
+    category: industrial
+  - id: IPMAN
+    name: Industrial Production Manufacturing
+    category: industrial
+
+  # --- Housing ---
+  - id: HOUST
+    name: Housing Starts Total
+    category: housing
+  - id: PERMIT
+    name: New Private Housing Units Authorized by Building Permits
+    category: housing
+  - id: CSUSHPISA
+    name: S&P/Case-Shiller U.S. National Home Price Index
+    category: housing
+  - id: MSPUS
+    name: Median Sales Price of Houses Sold
+    category: housing
+
+  # --- Financial Indicators ---
+  - id: DRTSCILM
+    name: Net Percentage of Banks Tightening Standards for C&I Loans
+    category: financial
+  - id: TOTLL
+    name: Loans and Leases in Bank Credit All Commercial Banks
+    category: financial
+  - id: BUSLOANS
+    name: Commercial and Industrial Loans All Commercial Banks
+    category: financial
+  - id: CMDEBT
+    name: Household Debt Service Payments as Percent of DPI
+    category: financial
+  - id: TDSP
+    name: Household Debt Service Payments as Percent of DPI
+    category: financial
+  - id: BOGZ1FL073164003Q
+    name: Nonfinancial Corporate Business Debt Securities Liability
+    category: financial
+  - id: GFDEBTN
+    name: Federal Debt Total Public Debt
+    category: financial
+  - id: GFDEGDQ188S
+    name: Federal Debt Total Public Debt as Percent of GDP
+    category: financial
+  - id: STLFSI4
+    name: St. Louis Fed Financial Stress Index
+    category: financial
+
+  # --- Trade ---
+  - id: BOPGSTB
+    name: Trade Balance Goods and Services
+    category: trade
+  - id: DTWEXBGS
+    name: Nominal Broad U.S. Dollar Index
+    category: trade
+
+  # --- Leading/Coincident Indicators ---
+  - id: USSLIND
+    name: Leading Index for the United States
+    category: leading
+  - id: UMCSENT
+    name: University of Michigan Consumer Sentiment
+    category: leading
+  - id: USREC
+    name: NBER Based Recession Indicators
+    category: leading
+
+bea:
+  nipa:
+    # Corporate profits by industry
+    - table: T61900
+      name: Corporate Profits by Industry
+      frequency: Q
+    # National income by type of income
+    - table: T11200
+      name: National Income by Type of Income
+      frequency: Q
+    # GDP and components
+    - table: T10300
+      name: Gross Value Added by Sector
+      frequency: Q
+    # National income supplements
+    - table: T11500
+      name: Relation of GDP GNP NI and PI
+      frequency: Q
+
+  fixed_assets:
+    # Fixed assets and consumer durable goods
+    - table: FAAt101
+      name: Current-Cost Net Stock of Fixed Assets and Consumer Durable Goods
+      frequency: A
