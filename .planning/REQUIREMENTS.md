@@ -124,61 +124,61 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | TBD | Pending |
-| DATA-02 | TBD | Pending |
-| DATA-03 | TBD | Pending |
-| DATA-04 | TBD | Pending |
-| DATA-05 | TBD | Pending |
-| DATA-06 | TBD | Pending |
-| DATA-07 | TBD | Pending |
-| DATA-08 | TBD | Pending |
-| DATA-09 | TBD | Pending |
-| FEAT-01 | TBD | Pending |
-| FEAT-02 | TBD | Pending |
-| FEAT-03 | TBD | Pending |
-| FEAT-04 | TBD | Pending |
-| FEAT-05 | TBD | Pending |
-| FEAT-06 | TBD | Pending |
-| FEAT-07 | TBD | Pending |
-| FEAT-08 | TBD | Pending |
-| FEAT-09 | TBD | Pending |
-| MODL-01 | TBD | Pending |
-| MODL-02 | TBD | Pending |
-| MODL-03 | TBD | Pending |
-| MODL-04 | TBD | Pending |
-| MODL-05 | TBD | Pending |
-| MODL-06 | TBD | Pending |
-| MODL-07 | TBD | Pending |
-| MODL-08 | TBD | Pending |
-| STRC-01 | TBD | Pending |
-| STRC-02 | TBD | Pending |
-| STRC-03 | TBD | Pending |
-| STRC-04 | TBD | Pending |
-| STRC-05 | TBD | Pending |
-| CORP-01 | TBD | Pending |
-| CORP-02 | TBD | Pending |
-| CORP-03 | TBD | Pending |
-| CORP-04 | TBD | Pending |
-| CORP-05 | TBD | Pending |
-| DASH-01 | TBD | Pending |
-| DASH-02 | TBD | Pending |
-| DASH-03 | TBD | Pending |
-| DASH-04 | TBD | Pending |
-| DASH-05 | TBD | Pending |
-| DASH-06 | TBD | Pending |
-| DASH-07 | TBD | Pending |
-| DASH-08 | TBD | Pending |
-| INFR-01 | TBD | Pending |
-| INFR-02 | TBD | Pending |
-| INFR-03 | TBD | Pending |
-| INFR-04 | TBD | Pending |
-| INFR-05 | TBD | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Pending |
+| DATA-03 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| DATA-05 | Phase 1 | Pending |
+| DATA-06 | Phase 1 | Pending |
+| DATA-07 | Phase 1 | Pending |
+| DATA-08 | Phase 1 | Pending |
+| DATA-09 | Phase 1 | Pending |
+| FEAT-01 | Phase 2 | Pending |
+| FEAT-02 | Phase 2 | Pending |
+| FEAT-03 | Phase 2 | Pending |
+| FEAT-04 | Phase 2 | Pending |
+| FEAT-05 | Phase 2 | Pending |
+| FEAT-06 | Phase 2 | Pending |
+| FEAT-07 | Phase 2 | Pending |
+| FEAT-08 | Phase 2 | Pending |
+| FEAT-09 | Phase 2 | Pending |
+| MODL-01 | Phase 3 | Pending |
+| MODL-02 | Phase 3 | Pending |
+| MODL-03 | Phase 3 | Pending |
+| MODL-04 | Phase 3 | Pending |
+| MODL-05 | Phase 3 | Pending |
+| MODL-06 | Phase 3 | Pending |
+| MODL-07 | Phase 3 | Pending |
+| MODL-08 | Phase 3 | Pending |
+| STRC-01 | Phase 4 | Pending |
+| STRC-02 | Phase 4 | Pending |
+| STRC-03 | Phase 4 | Pending |
+| STRC-04 | Phase 4 | Pending |
+| STRC-05 | Phase 4 | Pending |
+| CORP-01 | Phase 5 | Pending |
+| CORP-02 | Phase 5 | Pending |
+| CORP-03 | Phase 5 | Pending |
+| CORP-04 | Phase 5 | Pending |
+| CORP-05 | Phase 5 | Pending |
+| DASH-01 | Phase 2 | Pending |
+| DASH-02 | Phase 2 | Pending |
+| DASH-03 | Phase 2 | Pending |
+| DASH-04 | Phase 2 | Pending |
+| DASH-05 | Phase 2 | Pending |
+| DASH-06 | Phase 3 | Pending |
+| DASH-07 | Phase 4 | Pending |
+| DASH-08 | Phase 2 | Pending |
+| INFR-01 | Phase 1 | Pending |
+| INFR-02 | Phase 1 | Pending |
+| INFR-03 | Phase 1 | Pending |
+| INFR-04 | Phase 1 | Pending |
+| INFR-05 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 48 total
-- Mapped to phases: 0
-- Unmapped: 48 ⚠️
+- v1 requirements: 49 total
+- Mapped to phases: 49
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after initial definition*
+*Last updated: 2026-03-23 after roadmap creation*
