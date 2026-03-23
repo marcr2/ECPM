@@ -22,13 +22,13 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Feature Engineering
 
 - [x] **FEAT-01**: System provides a configurable NIPA-to-Marx translation engine with at least one canonical methodology (Shaikh/Tonak)
-- [ ] **FEAT-02**: System computes rate of profit: r = Surplus / (Constant Capital + Variable Capital) from NIPA proxies
-- [ ] **FEAT-03**: System computes organic composition of capital: OCC = C/V from NIPA proxies
-- [ ] **FEAT-04**: System computes rate of surplus value: s/v = (Value Added - Wages) / Wages from NIPA proxies
-- [ ] **FEAT-05**: System computes mass of profit and tracks mass vs. rate of profit divergence over time
-- [ ] **FEAT-06**: System computes productivity-wage gap (labor productivity growth vs. real wage growth) over rolling windows
-- [ ] **FEAT-07**: System computes financial fragility indicators: credit-to-GDP gap, financial-to-real asset ratio, corporate debt service ratio
-- [ ] **FEAT-08**: System documents every NIPA-to-Marx mapping with specific table/line item references and theoretical citations
+- [x] **FEAT-02**: System computes rate of profit: r = Surplus / (Constant Capital + Variable Capital) from NIPA proxies
+- [x] **FEAT-03**: System computes organic composition of capital: OCC = C/V from NIPA proxies
+- [x] **FEAT-04**: System computes rate of surplus value: s/v = (Value Added - Wages) / Wages from NIPA proxies
+- [x] **FEAT-05**: System computes mass of profit and tracks mass vs. rate of profit divergence over time
+- [x] **FEAT-06**: System computes productivity-wage gap (labor productivity growth vs. real wage growth) over rolling windows
+- [x] **FEAT-07**: System computes financial fragility indicators: credit-to-GDP gap, financial-to-real asset ratio, corporate debt service ratio
+- [x] **FEAT-08**: System documents every NIPA-to-Marx mapping with specific table/line item references and theoretical citations
 - [x] **FEAT-09**: System performs explicit frequency alignment at model-time with documented strategy parameter
 
 ### Predictive Modeling
@@ -134,13 +134,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-08 | Phase 1 | Complete |
 | DATA-09 | Phase 1 | Complete |
 | FEAT-01 | Phase 2 | Complete |
-| FEAT-02 | Phase 2 | Pending |
-| FEAT-03 | Phase 2 | Pending |
-| FEAT-04 | Phase 2 | Pending |
-| FEAT-05 | Phase 2 | Pending |
-| FEAT-06 | Phase 2 | Pending |
-| FEAT-07 | Phase 2 | Pending |
-| FEAT-08 | Phase 2 | Pending |
+| FEAT-02 | Phase 2 | Complete |
+| FEAT-03 | Phase 2 | Complete |
+| FEAT-04 | Phase 2 | Complete |
+| FEAT-05 | Phase 2 | Complete |
+| FEAT-06 | Phase 2 | Complete |
+| FEAT-07 | Phase 2 | Complete |
+| FEAT-08 | Phase 2 | Complete |
 | FEAT-09 | Phase 2 | Complete |
 | MODL-01 | Phase 3 | Pending |
 | MODL-02 | Phase 3 | Pending |

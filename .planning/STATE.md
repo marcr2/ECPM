@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Active
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-03-23T20:27:57Z"
-last_activity: 2026-03-23 -- Completed 02-03-PLAN.md (Chart components, crisis annotations, loading/error states)
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-23T20:41:01Z"
+last_activity: 2026-03-23 -- Completed 02-02-PLAN.md (Shaikh/Tonak + Kliman mappers, financial indicators, computation orchestrator)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 12
-  completed_plans: 10
-  percent: 75
+  completed_plans: 11
+  percent: 83
 ---
 
 # Project State
@@ -26,28 +26,28 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 2 of 5 (Feature Engineering and Core Dashboard)
-Plan: 3 of 5 in current phase -- COMPLETE
+Plan: 4 of 5 in current phase (02-01, 02-02, 02-03 COMPLETE)
 Status: Active
-Last activity: 2026-03-23 -- Completed 02-03-PLAN.md (Chart components, crisis annotations, loading/error states)
+Last activity: 2026-03-23 -- Completed 02-02-PLAN.md (Shaikh/Tonak + Kliman mappers, financial indicators, computation orchestrator)
 
-Progress: [████████░░] 75%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: ~5min
-- Total execution time: ~0.7 hours
+- Total execution time: ~0.8 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 7 | ~33min | ~5min |
-| 02 | 3 | ~10min | ~3min |
+| 02 | 4 | ~18min | ~4min |
 
 **Recent Trend:**
-- Last 5 plans: 01-05, 01-06, 02-01, 02-03
+- Last 5 plans: 01-06, 02-01, 02-02, 02-03
 - Trend: Steady
 
 *Updated after each plan completion*
@@ -55,6 +55,7 @@ Progress: [████████░░] 75%
 | Phase 01 P05 | 5min | 3 tasks | 22 files |
 | Phase 01 P06 | 3min | 2 tasks | 4 files |
 | Phase 02 P01 | 4min | 2 tasks | 9 files |
+| Phase 02 P02 | 8min | 2 tasks | 7 files |
 | Phase 02 P03 | 6min | 2 tasks | 9 files |
 
 ## Accumulated Context
@@ -80,6 +81,10 @@ Recent decisions affecting current work:
 - [02-01]: Financial indicators (productivity-wage gap, credit-GDP gap, financial-real ratio, debt-service ratio) have default implementations on ABC -- methodology-invariant
 - [02-01]: One-sided HP filter recursive approximation in base.py for credit-to-GDP gap (BIS lambda=400,000)
 - [02-01]: StrEnum for IndicatorSlug for direct string comparison in URL routing
+- [02-02]: Mappers accept descriptive keys (national_income, compensation, etc.) not FRED series IDs; orchestrator maps FRED IDs to descriptive keys
+- [02-02]: Kliman uses FRED K1NTOTL1HI000 for historical-cost net fixed assets (vs K1NTOTL1SI000 current-cost for Shaikh/Tonak)
+- [02-02]: ABC financial method defaults delegate to standalone financial.py functions rather than duplicating logic
+- [02-02]: Redis cache key pattern indicators/{slug}/{methodology} with TTL 3600s
 - [02-03]: ComposedChart (not LineChart) for indicator charts to support mixing Line + ReferenceArea children
 - [02-03]: KaTeX renderToString directly (no react-katex wrapper) for React 19 compatibility
 - [02-03]: Next.js 16 error.tsx uses unstable_retry (not reset) per framework docs
@@ -96,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T20:27:57Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-03-23T20:41:01Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

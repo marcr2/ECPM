@@ -55,7 +55,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md -- Backend interface contracts: ABC, registry, definitions, schemas, test scaffolds
-- [ ] 02-02-PLAN.md -- Backend methodology implementations: Shaikh/Tonak + Kliman mappers, financial fragility, computation orchestrator
+- [x] 02-02-PLAN.md -- Backend methodology implementations: Shaikh/Tonak + Kliman mappers, financial fragility, computation orchestrator
 - [x] 02-03-PLAN.md -- Frontend dependencies + reusable chart components: Recharts, KaTeX, crisis annotations, sparkline, loading/error states
 - [ ] 02-04-PLAN.md -- Backend API endpoints: indicator data, methodology docs, Redis caching
 - [ ] 02-05-PLAN.md -- Frontend indicator pages: overview dashboard, detail pages, methodology docs, comparison view, sidebar update
@@ -114,7 +114,7 @@ Phases execute in numeric order. Phase 4 depends on Phase 1 (not Phase 3), so Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Data Ingestion | 7/7 | Complete | 2026-03-23 |
-| 2. Feature Engineering and Core Dashboard | 3/5 | In Progress | - |
+| 2. Feature Engineering and Core Dashboard | 4/5 | In Progress | - |
 | 3. Predictive Modeling and Crisis Index | 0/3 | Not started | - |
 | 4. Structural Analysis | 0/2 | Not started | - |
 | 5. Corporate Concentration Analysis | 0/2 | Not started | - |
