@@ -263,3 +263,114 @@ def mock_redis() -> MagicMock:
     redis.delete = AsyncMock(side_effect=_delete)
     redis._store = store  # expose for test introspection
     return redis
+
+
+# ---------------------------------------------------------------------------
+# Synthetic indicator fixtures for modeling tests (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def synthetic_indicators():
+    """Generate a deterministic DataFrame of 8 economic indicators over 124 quarters.
+
+    Uses numpy random seed 42 for reproducibility. Columns correspond to
+    IndicatorSlug values. Rows span 1993Q1 to 2023Q4 (124 quarters).
+
+    Produces realistic-looking time series:
+      - rate_of_profit: declining trend (~0.15 to ~0.08)
+      - occ: rising trend (~3.0 to ~5.5)
+      - rate_of_surplus_value: gently rising (~1.5 to ~2.0)
+      - mass_of_profit: strongly rising (~500 to ~2000)
+      - productivity_wage_gap: rising (~100 to ~160)
+      - credit_gdp_gap: oscillating around 0 with structural breaks (-10 to +15)
+      - financial_real_ratio: rising (~1.2 to ~3.5)
+      - debt_service_ratio: oscillating (~10 to ~20%)
+    """
+    if not _HAS_PANDAS:
+        pytest.skip("pandas not installed")
+
+    import numpy as np
+
+    rng = np.random.default_rng(42)
+    n = 124
+    t = np.arange(n)
+
+    dates = pd.date_range("1993-01-01", periods=n, freq="QS")
+
+    # Declining trend with noise
+    rate_of_profit = 0.15 - 0.07 * (t / n) + rng.normal(0, 0.005, n)
+
+    # Rising trend
+    occ = 3.0 + 2.5 * (t / n) + rng.normal(0, 0.1, n)
+
+    # Gently rising
+    rate_of_surplus_value = 1.5 + 0.5 * (t / n) + rng.normal(0, 0.03, n)
+
+    # Strongly rising
+    mass_of_profit = 500 + 1500 * (t / n) + rng.normal(0, 30, n)
+
+    # Rising index
+    productivity_wage_gap = 100 + 60 * (t / n) + rng.normal(0, 2, n)
+
+    # Oscillating with structural breaks
+    credit_gdp_gap = (
+        5 * np.sin(2 * np.pi * t / 40)
+        + 3 * np.where(t > 60, 1, 0)  # structural break at ~2008
+        + rng.normal(0, 1.5, n)
+    )
+
+    # Rising
+    financial_real_ratio = 1.2 + 2.3 * (t / n) + rng.normal(0, 0.08, n)
+
+    # Oscillating
+    debt_service_ratio = 15 + 4 * np.sin(2 * np.pi * t / 48) + rng.normal(0, 0.8, n)
+
+    df = pd.DataFrame(
+        {
+            "rate_of_profit": rate_of_profit,
+            "occ": occ,
+            "rate_of_surplus_value": rate_of_surplus_value,
+            "mass_of_profit": mass_of_profit,
+            "productivity_wage_gap": productivity_wage_gap,
+            "credit_gdp_gap": credit_gdp_gap,
+            "financial_real_ratio": financial_real_ratio,
+            "debt_service_ratio": debt_service_ratio,
+        },
+        index=dates,
+    )
+
+    return df
+
+
+@pytest.fixture
+def synthetic_regime_series():
+    """Generate a pd.Series with 3 distinct volatility regimes.
+
+    Uses numpy random seed 42 for reproducibility. Returns 300 data points
+    with three segments:
+      - Regime 0 (normal): low volatility, positive mean
+      - Regime 1 (stagnation): medium volatility, near-zero mean
+      - Regime 2 (crisis): high volatility, negative mean
+    """
+    if not _HAS_PANDAS:
+        pytest.skip("pandas not installed")
+
+    import numpy as np
+
+    rng = np.random.default_rng(42)
+    n = 300
+
+    series = np.empty(n)
+
+    # Regime 0: normal (quarters 0-119)
+    series[:120] = 0.5 + rng.normal(0, 0.3, 120)
+
+    # Regime 1: stagnation (quarters 120-219)
+    series[120:220] = 0.05 + rng.normal(0, 0.8, 100)
+
+    # Regime 2: crisis (quarters 220-299)
+    series[220:] = -0.8 + rng.normal(0, 1.5, 80)
+
+    dates = pd.date_range("1948-01-01", periods=n, freq="QS")
+    return pd.Series(series, index=dates, name="regime_test")
