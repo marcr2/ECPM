@@ -1,16 +1,30 @@
 """Tests for FastAPI REST endpoints and SSE -- INFR-02, INFR-03.
 
 Covers health, series list, series detail, status, fetch trigger,
-and SSE stream endpoints. Tests are in RED state until Plan 01-04.
+and SSE stream endpoints. Uses in-memory SQLite to avoid requiring
+a running PostgreSQL instance during tests.
 """
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 import pytest
 
-# Import guard
+# Import guards
+try:
+    from sqlalchemy import event
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    _HAS_SQLALCHEMY = True
+except ImportError:
+    _HAS_SQLALCHEMY = False
+
 try:
     from ecpm.main import app as fastapi_app
+    from ecpm.database import get_db
+    from ecpm.models import Base
 
     _HAS_APP = True
 except ImportError:
@@ -23,13 +37,55 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def sync_client():
-    """Provide a synchronous TestClient for simple endpoint tests."""
+    """Provide a synchronous TestClient backed by in-memory SQLite.
+
+    Overrides the get_db dependency and the lifespan so tests do not
+    require a running PostgreSQL or Redis instance.
+    """
     try:
         from starlette.testclient import TestClient
     except ImportError:
         pytest.skip("starlette not installed")
 
-    return TestClient(fastapi_app)
+    if not _HAS_SQLALCHEMY:
+        pytest.skip("sqlalchemy not installed")
+
+    # Create an in-memory async SQLite engine for tests
+    test_engine = create_async_engine("sqlite+aiosqlite://", echo=False)
+
+    # Create tables in the in-memory SQLite engine
+    import asyncio
+
+    async def _setup_db():
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_setup_db())
+
+    test_session_factory = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        async with test_session_factory() as session:
+            yield session
+
+    # Replace the lifespan to avoid DB/Redis connection attempts
+    @asynccontextmanager
+    async def _test_lifespan(app):
+        yield
+
+    original_lifespan = fastapi_app.router.lifespan_context
+    fastapi_app.router.lifespan_context = _test_lifespan
+    fastapi_app.dependency_overrides[get_db] = _override_get_db
+
+    client = TestClient(fastapi_app)
+    yield client
+
+    # Cleanup
+    fastapi_app.dependency_overrides.clear()
+    fastapi_app.router.lifespan_context = original_lifespan
+    asyncio.run(test_engine.dispose())
 
 
 class TestHealthEndpoint:

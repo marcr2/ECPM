@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from typing import Optional
 
 import structlog
 from fastapi import FastAPI
@@ -12,6 +13,12 @@ from ecpm.core.logging import setup_logging
 from ecpm.database import engine
 
 logger = structlog.get_logger(__name__)
+
+# Global Redis connection pool, initialized on startup
+_redis_pool: Optional[object] = None
+
+# Lazy import to allow circular-safe router registration
+from ecpm.api.data import router as data_router  # noqa: E402
 
 
 @asynccontextmanager
@@ -48,6 +55,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(data_router)
 
 
 @app.get("/health")
