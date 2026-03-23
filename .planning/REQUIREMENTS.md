@@ -12,12 +12,12 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **DATA-01**: System can retrieve time-series data from FRED API with API key authentication
 - [x] **DATA-02**: System caches all retrieved FRED series in TimescaleDB to avoid re-fetching
 - [x] **DATA-03**: System can ingest BEA NIPA tables (corporate profits, national income, fixed assets, GDP by industry)
-- [ ] **DATA-04**: System stores series metadata (units, frequency, seasonality, source, last updated) alongside data
+- [x] **DATA-04**: System stores series metadata (units, frequency, seasonality, source, last updated) alongside data
 - [x] **DATA-05**: System runs scheduled data fetches via Celery beat on configurable intervals
 - [x] **DATA-06**: System handles missing data with explicit interpolation and frequency alignment strategies
-- [ ] **DATA-07**: System stores all series at native frequency (monthly/quarterly/annual) without implicit resampling
+- [x] **DATA-07**: System stores all series at native frequency (monthly/quarterly/annual) without implicit resampling
 - [x] **DATA-08**: System implements exponential backoff retry for API calls (FRED rate limit: 120 req/min)
-- [ ] **DATA-09**: TimescaleDB schema includes vintage_date column for future revision tracking support
+- [x] **DATA-09**: TimescaleDB schema includes vintage_date column for future revision tracking support
 
 ### Feature Engineering
 
@@ -127,12 +127,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-01 | Phase 1 | Complete |
 | DATA-02 | Phase 1 | Complete |
 | DATA-03 | Phase 1 | Complete |
-| DATA-04 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Complete |
 | DATA-05 | Phase 1 | Complete |
 | DATA-06 | Phase 1 | Complete |
-| DATA-07 | Phase 1 | Pending |
+| DATA-07 | Phase 1 | Complete |
 | DATA-08 | Phase 1 | Complete |
-| DATA-09 | Phase 1 | Pending |
+| DATA-09 | Phase 1 | Complete |
 | FEAT-01 | Phase 2 | Pending |
 | FEAT-02 | Phase 2 | Pending |
 | FEAT-03 | Phase 2 | Pending |
