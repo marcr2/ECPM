@@ -12,5 +12,6 @@ class Base(DeclarativeBase):
 # Import models so Alembic can discover them via Base.metadata
 from ecpm.models.series_metadata import SeriesMetadata  # noqa: E402, F401
 from ecpm.models.observation import Observation  # noqa: E402, F401
+from ecpm.models.io_table import IOMetadata, IOCell  # noqa: E402, F401
 
-__all__ = ["Base", "SeriesMetadata", "Observation"]
+__all__ = ["Base", "SeriesMetadata", "Observation", "IOMetadata", "IOCell"]
