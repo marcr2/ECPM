@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Active
-stopped_at: Completed quick-003-PLAN.md
-last_updated: "2026-03-24T00:25:00.000Z"
-last_activity: 2026-03-24 -- Completed quick-003-PLAN.md (Wave 4 - Phase 3 Integration)
+stopped_at: Completed quick-004-PLAN.md
+last_updated: "2026-03-24T00:45:00.000Z"
+last_activity: 2026-03-24 -- Completed quick-004-PLAN.md (Wave 5 - Phase 4 Backend)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 17
-  completed_plans: 13
-  percent: 76
+  completed_plans: 14
+  percent: 82
 ---
 
 # Project State
@@ -21,21 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Ingest real macroeconomic data (FRED/BEA) and compute Marxist economic indicators visible in an interactive dashboard
-**Current focus:** Phase 3 in progress: Predictive Modeling and Crisis Index
+**Current focus:** Phase 4 in progress: Structural Analysis Backend Complete
 
 ## Current Position
 
-Phase: 3 of 5 (Predictive Modeling and Crisis Index)
-Plan: 2 of 5 in current phase (03-02 COMPLETE)
+Phase: 4 of 5 (Structural Analysis)
+Plan: Backend complete (quick-004), frontend pending
 Status: Active
-Last activity: 2026-03-24 -- Completed quick-003-PLAN.md (Wave 4 - Phase 3 Integration)
+Last activity: 2026-03-24 -- Completed quick-004-PLAN.md (Wave 5 - Phase 4 Backend)
 
-Progress: [████████░░] 76%
+Progress: [████████░░] 82%
 
 ### Quick Tasks
 - quick-001: Wave 2 ECPM completion (Celery pipeline + forecasting API) - COMPLETE
 - quick-002: Wave 3 Frontend forecasting UI - COMPLETE
 - quick-003: Wave 4 Phase 3 Integration (forecast overlay, sidebar, auto-retrain) - COMPLETE
+- quick-004: Wave 5 Phase 4 Backend (structural analysis, Leontief, shock propagation) - COMPLETE
 
 ## Performance Metrics
 
@@ -113,6 +114,10 @@ Recent decisions affecting current work:
 - [quick-003]: Recharts Area with [lower, upper] array format for CI band gradient rendering
 - [quick-003]: Forecast toggle uses per-page useState with lazy fetch on enable
 - [quick-003]: Auto-retrain hardcoded 5 minute offset from data refresh schedule
+- [quick-004]: Synthetic 3x3 I-O fixtures with known analytical Leontief inverse for deterministic testing
+- [quick-004]: DEPT_I_CODES static set for means-of-production NAICS classification
+- [quick-004]: Simplified c/v/s decomposition uses 60/40 labor/surplus split (placeholder until GDPbyIndustry integration)
+- [quick-004]: Default BEA TableIDs cached (Use=259, Make=47) to avoid repeated API discovery
 
 ### Pending Todos
 
@@ -126,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T00:25:00.000Z
-Stopped at: Completed quick-003-PLAN.md
+Last session: 2026-03-24T00:45:00.000Z
+Stopped at: Completed quick-004-PLAN.md
 Resume file: None
