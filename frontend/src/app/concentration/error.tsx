@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { unstable_retry as retry } from "next/navigation";
 
 interface ErrorProps {
   error: Error & { digest?: string };

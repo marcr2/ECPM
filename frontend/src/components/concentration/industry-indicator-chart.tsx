@@ -115,11 +115,6 @@ export function IndustryIndicatorChart({
                 backgroundColor: "var(--card)",
                 border: "1px solid var(--border)",
               }}
-              formatter={(value: number | null, name: string) => {
-                if (value === null) return ["-", name];
-                if (name === "cr4") return [`${value.toFixed(1)}%`, "CR4"];
-                return [value.toFixed(2), correlation.indicator_name];
-              }}
             />
             <Legend />
             <Line

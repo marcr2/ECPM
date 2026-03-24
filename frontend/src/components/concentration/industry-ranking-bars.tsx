@@ -70,9 +70,10 @@ export function IndustryRankingBars({
             layout="vertical"
             data={displayData}
             margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-            onClick={(data) => {
-              if (data?.activePayload?.[0]?.payload?.naics) {
-                onSelect(data.activePayload[0].payload.naics);
+            onClick={(data: unknown) => {
+              const d = data as { activePayload?: Array<{ payload?: { naics?: string } }> } | null;
+              if (d?.activePayload?.[0]?.payload?.naics) {
+                onSelect(d.activePayload[0].payload.naics);
               }
             }}
           >
@@ -92,14 +93,6 @@ export function IndustryRankingBars({
               contentStyle={{
                 backgroundColor: "var(--card)",
                 border: "1px solid var(--border)",
-              }}
-              formatter={(value: number) => [
-                sortBy === "hhi" ? value.toFixed(0) : `${value.toFixed(1)}%`,
-                sortBy.toUpperCase(),
-              ]}
-              labelFormatter={(label) => {
-                const item = displayData.find((d) => d.displayName === label);
-                return item?.name || label;
               }}
             />
             <Bar

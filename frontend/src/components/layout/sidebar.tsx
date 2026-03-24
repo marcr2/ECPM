@@ -48,7 +48,7 @@ const phases = [
     href: "/concentration",
     icon: PieChart,
     phase: 5,
-    enabled: false,
+    enabled: true,
   },
 ];
 
