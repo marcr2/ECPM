@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Active
-stopped_at: Completed quick-004-PLAN.md
-last_updated: "2026-03-24T00:45:00.000Z"
-last_activity: 2026-03-24 -- Completed quick-004-PLAN.md (Wave 5 - Phase 4 Backend)
+stopped_at: Completed quick-005-PLAN.md
+last_updated: "2026-03-24T01:30:00.000Z"
+last_activity: 2026-03-24 -- Completed quick-005-PLAN.md (Wave 6 - Phase 4 Frontend)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 17
-  completed_plans: 14
-  percent: 82
+  completed_plans: 15
+  percent: 88
 ---
 
 # Project State
@@ -21,29 +21,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Ingest real macroeconomic data (FRED/BEA) and compute Marxist economic indicators visible in an interactive dashboard
-**Current focus:** Phase 4 in progress: Structural Analysis Backend Complete
+**Current focus:** Phase 4 Complete: Structural Analysis (Backend + Frontend)
 
 ## Current Position
 
-Phase: 4 of 5 (Structural Analysis)
-Plan: Backend complete (quick-004), frontend pending
+Phase: 4 of 5 (Structural Analysis) - COMPLETE
+Plan: Phase 4 complete (quick-004 backend + quick-005 frontend)
 Status: Active
-Last activity: 2026-03-24 -- Completed quick-004-PLAN.md (Wave 5 - Phase 4 Backend)
+Last activity: 2026-03-24 -- Completed quick-005-PLAN.md (Wave 6 - Phase 4 Frontend)
 
-Progress: [████████░░] 82%
+Progress: [█████████░] 88%
 
 ### Quick Tasks
 - quick-001: Wave 2 ECPM completion (Celery pipeline + forecasting API) - COMPLETE
 - quick-002: Wave 3 Frontend forecasting UI - COMPLETE
 - quick-003: Wave 4 Phase 3 Integration (forecast overlay, sidebar, auto-retrain) - COMPLETE
 - quick-004: Wave 5 Phase 4 Backend (structural analysis, Leontief, shock propagation) - COMPLETE
+- quick-005: Wave 6 Phase 4 Frontend (Nivo heatmap, Sankey, shock simulation UI) - COMPLETE
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: ~5min
-- Total execution time: ~0.9 hours
+- Total execution time: ~1.0 hours
 
 **By Phase:**
 
@@ -54,7 +55,7 @@ Progress: [████████░░] 82%
 | 03 | 1 | ~4min | ~4min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02, 02-03, 02-04, 03-01
+- Last 5 plans: 02-02, 02-03, 02-04, 03-01, quick-005
 - Trend: Steady
 
 *Updated after each plan completion*
@@ -67,6 +68,7 @@ Progress: [████████░░] 82%
 | Phase 02 P04 | 12min | 2 tasks | 5 files |
 | Phase 03 P01 | 4min | 2 tasks | 11 files |
 | Phase 03 P02 | 9min | 2 tasks | 7 files |
+| quick-005 | 8min | 5 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -118,6 +120,9 @@ Recent decisions affecting current work:
 - [quick-004]: DEPT_I_CODES static set for means-of-production NAICS classification
 - [quick-004]: Simplified c/v/s decomposition uses 60/40 labor/surplus split (placeholder until GDPbyIndustry integration)
 - [quick-004]: Default BEA TableIDs cached (Use=259, Make=47) to avoid repeated API discovery
+- [quick-005]: HeatMapCanvas over HeatMap for 71x71 matrix performance
+- [quick-005]: Build sankey flows from 2x2 matrix when sankey_data is null
+- [quick-005]: Native HTML select for year selector (simpler than Base UI Select)
 
 ### Pending Todos
 
@@ -131,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T00:45:00.000Z
-Stopped at: Completed quick-004-PLAN.md
+Last session: 2026-03-24T01:30:00.000Z
+Stopped at: Completed quick-005-PLAN.md
 Resume file: None
