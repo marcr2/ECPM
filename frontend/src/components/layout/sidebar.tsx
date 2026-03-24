@@ -41,7 +41,7 @@ const phases = [
     href: "/structural",
     icon: GitBranch,
     phase: 4,
-    enabled: false,
+    enabled: true,
   },
   {
     name: "Concentration",
