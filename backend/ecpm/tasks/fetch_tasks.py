@@ -79,6 +79,6 @@ async def _run_pipeline() -> dict[str, Any]:
             config=config,
         )
         result = await pipeline.ingest_all()
-        await session.commit()
+        # No final commit needed - each series commits individually
 
     return result.to_dict()

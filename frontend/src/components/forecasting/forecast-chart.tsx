@@ -122,33 +122,33 @@ export function ForecastChart({
           <ComposedChart data={ciData}>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
+              stroke="var(--border)"
             />
             <XAxis
               dataKey="date"
               tickFormatter={formatDateTick}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               fontSize={12}
               tickLine={false}
             />
             <YAxis
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               fontSize={12}
               tickLine={false}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
                 borderRadius: "0.5rem",
-                color: "hsl(var(--card-foreground))",
+                color: "var(--card-foreground)",
                 fontSize: 12,
               }}
             />
             <Legend
               wrapperStyle={{
                 fontSize: 12,
-                color: "hsl(var(--muted-foreground))",
+                color: "var(--muted-foreground)",
               }}
             />
 
@@ -157,7 +157,7 @@ export function ForecastChart({
               type="monotone"
               dataKey="ci95"
               stroke="none"
-              fill="hsl(var(--chart-4))"
+              fill="var(--chart-4)"
               fillOpacity={0.2}
               name="95% CI"
               connectNulls={false}
@@ -168,7 +168,7 @@ export function ForecastChart({
               type="monotone"
               dataKey="ci68"
               stroke="none"
-              fill="hsl(var(--chart-3))"
+              fill="var(--chart-3)"
               fillOpacity={0.3}
               name="68% CI"
               connectNulls={false}
@@ -179,7 +179,7 @@ export function ForecastChart({
               type="monotone"
               dataKey="historical"
               name="Historical"
-              stroke="hsl(var(--chart-1))"
+              stroke="var(--chart-1)"
               strokeWidth={2}
               dot={false}
               connectNulls
@@ -190,7 +190,7 @@ export function ForecastChart({
               type="monotone"
               dataKey="forecast"
               name="Forecast"
-              stroke="hsl(var(--chart-2))"
+              stroke="var(--chart-2)"
               strokeWidth={2}
               strokeDasharray="5 3"
               dot={false}
@@ -200,8 +200,8 @@ export function ForecastChart({
             <Brush
               dataKey="date"
               height={30}
-              stroke="hsl(var(--primary))"
-              fill="hsl(var(--muted))"
+              stroke="var(--primary)"
+              fill="var(--muted)"
               tickFormatter={formatDateTick}
             />
           </ComposedChart>

@@ -53,7 +53,7 @@ def _publish_progress(
 ) -> None:
     """Publish training progress to Redis pubsub channel."""
     message = {
-        "step": step,
+        "name": step,
         "status": status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -79,13 +79,14 @@ def _publish_progress(
 def run_training_pipeline(self: Any) -> dict[str, Any]:
     """Orchestrate the full model training pipeline.
 
-    Executes 6 steps sequentially:
-    1. Stationarity preprocessing
-    2. VAR model fitting and forecasting
-    3. SVAR model fitting
-    4. Regime-switching detection
-    5. Historical backtesting
-    6. Cache results to Redis
+    Executes 7 steps sequentially:
+    1. Load indicator data from database
+    2. Stationarity preprocessing
+    3. VAR model fitting and forecasting
+    4. SVAR model fitting
+    5. Regime-switching detection
+    6. Historical backtesting
+    7. Cache results to Redis
 
     Returns:
         Dict with pipeline result summary.
@@ -147,7 +148,7 @@ def run_training_pipeline(self: Any) -> dict[str, Any]:
             "status": "complete",
             "task_id": self.request.id,
             "duration_ms": pipeline_duration_ms,
-            "steps_completed": 6,
+            "steps_completed": 7,
         }
 
     except Exception as exc:
@@ -210,7 +211,15 @@ def _load_indicators_data() -> dict[str, Any]:
         return df
 
     # Run async code in sync context
-    df = asyncio.run(_fetch_all_indicators())
+    # Use get_event_loop() instead of asyncio.run() to avoid conflicts
+    # with existing event loops in Celery worker context
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    df = loop.run_until_complete(_fetch_all_indicators())
 
     return {
         "dataframe": df,
@@ -614,8 +623,8 @@ def cache_results_step(
     step_start = time.time()
 
     try:
-        # Generate version timestamp
-        version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        # Generate version timestamp with milliseconds to prevent collisions
+        version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")[:17]  # Include milliseconds
         generated_at = datetime.now(timezone.utc).isoformat()
 
         # Build forecast response
@@ -668,11 +677,13 @@ def cache_results_step(
         for key, data in versioned_keys.items():
             redis_client.setex(key, CACHE_TTL, json.dumps(data))
 
-        # Atomic pointer swap (no TTL on pointers)
-        redis_client.set(f"{KEY_PREFIX_FORECASTS}:latest", f"{KEY_PREFIX_FORECASTS}:v{version}")
-        redis_client.set(f"{KEY_PREFIX_REGIME}:latest", f"{KEY_PREFIX_REGIME}:v{version}")
-        redis_client.set(f"{KEY_PREFIX_CRISIS}:latest", f"{KEY_PREFIX_CRISIS}:v{version}")
-        redis_client.set(f"{KEY_PREFIX_BACKTESTS}:latest", f"{KEY_PREFIX_BACKTESTS}:v{version}")
+        # Atomic pointer swap using Redis pipeline (no TTL on pointers)
+        pipe = redis_client.pipeline()
+        pipe.set(f"{KEY_PREFIX_FORECASTS}:latest", f"{KEY_PREFIX_FORECASTS}:v{version}")
+        pipe.set(f"{KEY_PREFIX_REGIME}:latest", f"{KEY_PREFIX_REGIME}:v{version}")
+        pipe.set(f"{KEY_PREFIX_CRISIS}:latest", f"{KEY_PREFIX_CRISIS}:v{version}")
+        pipe.set(f"{KEY_PREFIX_BACKTESTS}:latest", f"{KEY_PREFIX_BACKTESTS}:v{version}")
+        pipe.execute()
 
         duration_ms = int((time.time() - step_start) * 1000)
         _publish_progress(

@@ -23,6 +23,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ecpm.cache import build_cache_key, cache_get, cache_set
+from ecpm.cache_manager import (
+    get_cached_indicator,
+    get_cached_overview,
+    set_cached_indicator,
+    set_cached_overview,
+)
 from ecpm.database import get_db
 from ecpm.indicators.computation import compute_all_summaries, compute_indicator
 from ecpm.indicators.definitions import INDICATOR_DEFS, IndicatorSlug
@@ -111,20 +117,19 @@ async def indicator_overview(
             status_code=404, detail=f"Unknown methodology: {methodology}"
         )
 
-    redis = _get_redis()
-    cache_key = build_cache_key(
-        "/api/indicators/overview", {"methodology": methodology}
-    )
+    # Try disk cache first (fast)
+    cached_data = get_cached_overview(methodology)
+    if cached_data is not None:
+        logger.debug("indicators.disk_cache_hit", methodology=methodology)
+        return IndicatorOverviewResponse(
+            methodology=cached_data["methodology"],
+            indicators=[IndicatorSummary(**s) for s in cached_data["indicators"]],
+        )
 
-    # Try cache first
-    cached = await cache_get(cache_key, redis=redis)
-    if cached is not None:
-        logger.debug("indicators.cache_hit", key=cache_key)
-        return IndicatorOverviewResponse.model_validate_json(cached)
-
-    # Compute all summaries
+    # Fallback: compute on-demand and cache to disk
+    logger.info("indicators.computing_overview", methodology=methodology)
     try:
-        summaries = await compute_all_summaries(methodology, db, redis=redis)
+        summaries = await compute_all_summaries(methodology, db, redis=None)
     except Exception:
         logger.error(
             "indicators.overview_failed",
@@ -135,14 +140,15 @@ async def indicator_overview(
             status_code=500, detail="Failed to compute indicator summaries"
         )
 
+    response_data = {
+        "methodology": methodology,
+        "indicators": summaries,
+    }
+    set_cached_overview(methodology, response_data)
+
     response = IndicatorOverviewResponse(
         methodology=methodology,
         indicators=[IndicatorSummary(**s) for s in summaries],
-    )
-
-    # Cache the response
-    await cache_set(
-        cache_key, response.model_dump_json(), ttl=_DATA_CACHE_TTL, redis=redis
     )
 
     return response
@@ -254,21 +260,17 @@ async def indicator_detail(
             status_code=404, detail=f"Unknown methodology: {methodology}"
         )
 
-    redis = _get_redis()
-    cache_key = build_cache_key(
-        f"/api/indicators/{slug}",
-        {"methodology": methodology, "start": start, "end": end},
-    )
+    # Try disk cache first (only if no date filters)
+    if start is None and end is None:
+        cached_data = get_cached_indicator(methodology, slug)
+        if cached_data is not None:
+            logger.debug("indicators.disk_cache_hit", methodology=methodology, slug=slug)
+            return IndicatorResponse(**cached_data)
 
-    # Try cache first
-    cached = await cache_get(cache_key, redis=redis)
-    if cached is not None:
-        logger.debug("indicators.cache_hit", key=cache_key)
-        return IndicatorResponse.model_validate_json(cached)
-
-    # Compute the indicator
+    # Fallback: compute on-demand
+    logger.info("indicators.computing_detail", methodology=methodology, slug=slug)
     try:
-        series = await compute_indicator(slug, methodology, db, redis=redis)
+        series = await compute_indicator(slug, methodology, db, redis=None)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception:
@@ -285,9 +287,13 @@ async def indicator_detail(
 
     # Convert pd.Series to list of IndicatorDataPoint
     import datetime as dt
+    import math
 
     data_points = []
     for date, value in series.items():
+        # Skip NaN/None values to avoid Pydantic validation errors
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            continue
         d = date.to_pydatetime() if hasattr(date, "to_pydatetime") else date
         data_points.append(IndicatorDataPoint(date=d, value=float(value)))
 
@@ -308,6 +314,14 @@ async def indicator_detail(
 
     # Build response
     indicator_def = INDICATOR_DEFS.get(IndicatorSlug(slug), {})
+
+    # Get latest non-NaN value and date
+    latest_value = None
+    latest_date = None
+    if len(data_points) > 0:
+        latest_value = data_points[-1].value
+        latest_date = data_points[-1].date
+
     response = IndicatorResponse(
         slug=slug,
         name=indicator_def.get("name", slug),
@@ -315,18 +329,14 @@ async def indicator_detail(
         methodology=methodology,
         frequency="A",  # Annual frequency for NIPA-derived indicators
         data=data_points,
-        latest_value=float(series.iloc[-1]) if len(series) > 0 else None,
-        latest_date=(
-            series.index[-1].to_pydatetime()
-            if len(series) > 0 and hasattr(series.index[-1], "to_pydatetime")
-            else series.index[-1] if len(series) > 0 else None
-        ),
+        latest_value=latest_value,
+        latest_date=latest_date,
     )
 
-    # Cache the response
-    await cache_set(
-        cache_key, response.model_dump_json(), ttl=_DATA_CACHE_TTL, redis=redis
-    )
+    # Cache to disk if no date filters
+    if start is None and end is None:
+        indicator_data = response.model_dump(mode="json")
+        set_cached_indicator(methodology, slug, indicator_data)
 
     return response
 
@@ -364,6 +374,7 @@ async def indicator_compare(
     results: list[IndicatorResponse] = []
 
     indicator_def = INDICATOR_DEFS.get(IndicatorSlug(slug), {})
+    import math
 
     for mapper in mappers:
         try:
@@ -373,6 +384,9 @@ async def indicator_compare(
 
             data_points = []
             for date, value in series.items():
+                # Skip NaN/None values to avoid Pydantic validation errors
+                if value is None or (isinstance(value, float) and math.isnan(value)):
+                    continue
                 d = (
                     date.to_pydatetime()
                     if hasattr(date, "to_pydatetime")
@@ -382,6 +396,13 @@ async def indicator_compare(
                     IndicatorDataPoint(date=d, value=float(value))
                 )
 
+            # Get latest non-NaN value and date from filtered data_points
+            latest_value = None
+            latest_date = None
+            if len(data_points) > 0:
+                latest_value = data_points[-1].value
+                latest_date = data_points[-1].date
+
             results.append(
                 IndicatorResponse(
                     slug=slug,
@@ -390,15 +411,8 @@ async def indicator_compare(
                     methodology=mapper.slug,
                     frequency="A",
                     data=data_points,
-                    latest_value=(
-                        float(series.iloc[-1]) if len(series) > 0 else None
-                    ),
-                    latest_date=(
-                        series.index[-1].to_pydatetime()
-                        if len(series) > 0
-                        and hasattr(series.index[-1], "to_pydatetime")
-                        else series.index[-1] if len(series) > 0 else None
-                    ),
+                    latest_value=latest_value,
+                    latest_date=latest_date,
                 )
             )
         except Exception:

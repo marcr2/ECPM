@@ -19,6 +19,7 @@ from typing import Optional
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from ecpm.modeling.schemas import (
@@ -40,6 +41,26 @@ KEY_PREFIX_BACKTESTS = "ecpm:backtests"
 
 # Pubsub channel for training progress
 PROGRESS_CHANNEL = "ecpm:training:progress"
+
+# Training lock key and TTL (1 hour)
+TRAINING_LOCK_KEY = "ecpm:training:lock"
+TRAINING_LOCK_TTL = 3600
+
+
+# Response models
+class TrainingStartResponse(BaseModel):
+    """Response for POST /train endpoint."""
+
+    task_id: str
+    status: str = "accepted"
+
+
+class TaskStatusResponse(BaseModel):
+    """Response for GET /train/{task_id} endpoint."""
+
+    task_id: str
+    status: str
+    result: Optional[dict] = None
 
 
 def _get_redis():
@@ -67,14 +88,32 @@ async def _get_cached_result(prefix: str, redis) -> dict | None:
         # Get the actual data from the versioned key
         data = await redis.get(latest_key)
         if data is None:
-            logger.debug("cache.versioned_key_missing", key=latest_key)
+            # Versioned key expired after reading latest pointer
+            logger.warning("cache.expired_version", prefix=prefix, version=latest_key)
             return None
 
         return json.loads(data)
 
+    except json.JSONDecodeError as e:
+        logger.error("cache.corrupt_data", prefix=prefix, error=str(e))
+        return None
     except Exception:
         logger.warning("cache.get_failed", prefix=prefix, exc_info=True)
         return None
+
+
+async def _check_training_in_progress(redis) -> bool:
+    """Check if training pipeline is already running."""
+    if redis is None:
+        return False
+    lock_value = await redis.get(TRAINING_LOCK_KEY)
+    return lock_value is not None
+
+
+async def _set_training_lock(redis, task_id: str) -> None:
+    """Set training lock with TTL to prevent concurrent runs."""
+    if redis is not None:
+        await redis.setex(TRAINING_LOCK_KEY, TRAINING_LOCK_TTL, task_id)
 
 
 @router.get("/forecasts", response_model=ForecastsResponse)
@@ -87,6 +126,17 @@ async def get_forecasts(
     Reads from Redis key 'ecpm:forecasts:latest' -> versioned key -> JSON data.
     Returns 404 if no cached results exist.
     """
+    # Validate indicator slug if provided
+    if indicator is not None:
+        from ecpm.indicators.definitions import IndicatorSlug
+
+        valid_slugs = [s.value for s in IndicatorSlug]
+        if indicator not in valid_slugs:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid indicator: {indicator}. Must be one of: {', '.join(valid_slugs)}",
+            )
+
     redis = _get_redis()
     cached = await _get_cached_result(KEY_PREFIX_FORECASTS, redis)
 
@@ -181,22 +231,37 @@ async def get_backtests() -> BacktestsResponse:
     return BacktestsResponse.model_validate(cached)
 
 
-@router.post("/train", status_code=202)
-async def trigger_training() -> dict:
+@router.post("/train", status_code=202, response_model=TrainingStartResponse)
+async def trigger_training() -> TrainingStartResponse:
     """Trigger model training pipeline.
 
     Calls run_training_pipeline.delay() to start async Celery task.
     Returns 202 Accepted with task_id for tracking.
+
+    Returns 409 if training is already in progress.
     """
+    redis = _get_redis()
+
+    # Check if training is already in progress
+    if await _check_training_in_progress(redis):
+        logger.warning("training.already_in_progress")
+        raise HTTPException(
+            status_code=409,
+            detail="Training pipeline already in progress. Wait for completion or check /training/stream",
+        )
+
     try:
         from ecpm.tasks.training_tasks import run_training_pipeline
 
         result = run_training_pipeline.delay()
         task_id = result.id
 
+        # Set lock to prevent concurrent training runs
+        await _set_training_lock(redis, task_id)
+
         logger.info("training.triggered", task_id=task_id)
 
-        return {"task_id": task_id, "status": "accepted"}
+        return TrainingStartResponse(task_id=task_id, status="accepted")
 
     except ImportError:
         logger.error("training.import_failed")
@@ -209,6 +274,38 @@ async def trigger_training() -> dict:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to trigger training: {str(exc)}",
+        )
+
+
+@router.get("/train/{task_id}", response_model=TaskStatusResponse)
+async def get_training_status(task_id: str) -> TaskStatusResponse:
+    """Check status of a training pipeline task.
+
+    Returns the task status and result if complete.
+    """
+    try:
+        from ecpm.tasks.celery_app import celery_app
+
+        result = celery_app.AsyncResult(task_id)
+
+        return TaskStatusResponse(
+            task_id=task_id,
+            status=result.state,
+            result=result.result if result.ready() else None,
+        )
+
+    except ImportError:
+        logger.error("training.celery_unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Celery not available",
+        )
+    except Exception as exc:
+        # Handle Redis connection errors and other exceptions
+        logger.error("training.status_check_failed", task_id=task_id, error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail=f"Unable to check task status: {str(exc)}",
         )
 
 
@@ -266,7 +363,7 @@ async def training_progress_stream():
                         # Check if training is complete
                         try:
                             parsed = json.loads(data)
-                            if parsed.get("step") == "pipeline" and parsed.get("status") in ("complete", "error"):
+                            if parsed.get("name") == "pipeline" and parsed.get("status") in ("complete", "error"):
                                 logger.debug("training_stream.pipeline_finished")
                                 yield {
                                     "event": "done",

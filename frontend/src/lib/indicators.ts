@@ -111,8 +111,10 @@ export async function fetchIndicatorData(
   slug: string,
   params?: { methodology?: string; start?: string; end?: string }
 ): Promise<IndicatorData> {
+  // Convert frontend slug format (hyphens) to backend format (underscores)
+  const apiSlug = slug.replace(/-/g, "_");
   return indicatorFetch<IndicatorData>(
-    `/api/indicators/${encodeURIComponent(slug)}`,
+    `/api/indicators/${encodeURIComponent(apiSlug)}`,
     params as Record<string, string | undefined>
   );
 }
@@ -123,8 +125,10 @@ export async function fetchIndicatorData(
 export async function fetchIndicatorComparison(
   slug: string
 ): Promise<{ methodologies: Record<string, IndicatorData> }> {
+  // Convert frontend slug format (hyphens) to backend format (underscores)
+  const apiSlug = slug.replace(/-/g, "_");
   return indicatorFetch<{ methodologies: Record<string, IndicatorData> }>(
-    `/api/indicators/${encodeURIComponent(slug)}/compare`
+    `/api/indicators/${encodeURIComponent(apiSlug)}/compare`
   );
 }
 

@@ -22,46 +22,48 @@ export function CrisisAnnotations({
   if (visible === "hidden") return null;
 
   if (visible === "lines") {
-    return crises.flatMap((crisis) => [
-      <ReferenceLine
-        key={`${crisis.name}-start`}
-        x={crisis.startDate}
-        stroke={crisis.color}
-        strokeDasharray="4 4"
-        strokeOpacity={0.7}
-        label={{
-          value: crisis.name,
-          position: "top",
-          fontSize: 10,
-          fill: crisis.color,
-        }}
-      />,
-      <ReferenceLine
-        key={`${crisis.name}-end`}
-        x={crisis.endDate}
-        stroke={crisis.color}
-        strokeDasharray="4 4"
-        strokeOpacity={0.7}
-      />,
-    ]);
+    return (
+      <>
+        {crises.flatMap((crisis) => [
+          <ReferenceLine
+            key={`${crisis.name}-start`}
+            x={crisis.startDate}
+            stroke={crisis.color}
+            strokeDasharray="4 4"
+            strokeOpacity={0.7}
+            label={{
+              value: crisis.name,
+              position: "top",
+              fontSize: 10,
+              fill: crisis.color,
+            }}
+          />,
+          <ReferenceLine
+            key={`${crisis.name}-end`}
+            x={crisis.endDate}
+            stroke={crisis.color}
+            strokeDasharray="4 4"
+            strokeOpacity={0.7}
+          />,
+        ])}
+      </>
+    );
   }
 
   // Default: "shaded"
-  return crises.map((crisis) => (
-    <ReferenceArea
-      key={crisis.name}
-      x1={crisis.startDate}
-      x2={crisis.endDate}
-      fill={crisis.color}
-      fillOpacity={0.15}
-      stroke={crisis.color}
-      strokeOpacity={0.3}
-      label={{
-        value: crisis.name,
-        position: "top",
-        fontSize: 10,
-        fill: "hsl(var(--muted-foreground))",
-      }}
-    />
-  ));
+  return (
+    <>
+      {crises.map((crisis) => (
+        <ReferenceArea
+          key={crisis.name}
+          x1={crisis.startDate}
+          x2={crisis.endDate}
+          fill={crisis.color}
+          fillOpacity={0.3}
+          stroke={crisis.color}
+          strokeOpacity={0.5}
+        />
+      ))}
+    </>
+  );
 }

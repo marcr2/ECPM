@@ -104,7 +104,7 @@ export function ReproductionSankey({
           )}
           theme={{
             text: {
-              fill: "hsl(var(--muted-foreground))",
+              fill: "var(--muted-foreground)",
               fontSize: 12,
             },
           }}

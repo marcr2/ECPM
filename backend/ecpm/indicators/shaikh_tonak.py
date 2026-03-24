@@ -15,10 +15,10 @@ import pandas as pd
 
 from ecpm.indicators.base import IndicatorDoc, MethodologyMapper, NIPAMapping
 
-# FRED series IDs used by this methodology
-SERIES_NATIONAL_INCOME = "A053RC1Q027SBEA"
-SERIES_COMPENSATION = "A576RC1"
-SERIES_NET_FIXED_ASSETS_CURRENT = "K1NTOTL1SI000"
+# Series IDs used by this methodology
+SERIES_NATIONAL_INCOME = "BEA:T11200:L1"  # BEA NIPA Table 1.12, Line 1 (Total National Income)
+SERIES_COMPENSATION = "A576RC1"  # FRED (in billions)
+SERIES_NET_FIXED_ASSETS_CURRENT = "K1PTOTL1ES000"  # FRED (in millions)
 
 # Internal data dict keys (mappers receive data keyed by these descriptive names
 # after the computation orchestrator maps FRED IDs -> descriptive keys)
@@ -40,9 +40,11 @@ class ShaikhTonakMapper(MethodologyMapper):
     which is the standard contemporary replacement-cost valuation.
 
     Series key convention:
-        - national_income: FRED A053RC1Q027SBEA (National Income)
-        - compensation: FRED A576RC1 (Compensation of Employees)
-        - net_fixed_assets_current: FRED K1NTOTL1SI000 (Current-Cost Net Stock)
+        - national_income: BEA:T11200:L1 (Total National Income, in millions)
+        - compensation: FRED A576RC1 (Compensation of Employees, in billions)
+        - net_fixed_assets_current: FRED K1PTOTL1ES000 (Current-Cost Net Stock, in millions)
+
+    Units are normalized to billions of dollars in computations.
     """
 
     @property
@@ -58,23 +60,31 @@ class ShaikhTonakMapper(MethodologyMapper):
     # ------------------------------------------------------------------
 
     def _surplus_value(self, data: dict[str, pd.Series]) -> pd.Series:
-        """S = National Income - Compensation of Employees."""
-        return data[_KEY_NI] - data[_KEY_COMP]
+        """S = National Income - Compensation of Employees.
+
+        Normalizes National Income from millions to billions before computation.
+        """
+        ni = data[_KEY_NI] / 1000.0  # BEA data in millions, convert to billions
+        comp = data[_KEY_COMP]  # FRED data already in billions
+        return ni - comp
 
     def _variable_capital(self, data: dict[str, pd.Series]) -> pd.Series:
-        """V = Compensation of Employees."""
+        """V = Compensation of Employees (already in billions)."""
         return data[_KEY_COMP]
 
     def _constant_capital(self, data: dict[str, pd.Series]) -> pd.Series:
-        """C = Current-Cost Net Stock of Private Fixed Assets."""
-        return data[_KEY_ASSETS]
+        """C = Current-Cost Net Stock of Private Fixed Assets.
+
+        Converts from millions to billions for consistent units.
+        """
+        return data[_KEY_ASSETS] / 1000.0  # FRED data in millions, convert to billions
 
     def compute_rate_of_profit(self, data: dict[str, pd.Series]) -> pd.Series:
         """Compute rate of profit: r = S / (C + V).
 
         Args:
             data: Dict with keys 'national_income', 'compensation',
-                  'net_fixed_assets_current'.
+                  'net_fixed_assets_current' (K1PTOTL1ES000).
 
         Returns:
             pd.Series of rate of profit values indexed by date.
@@ -88,7 +98,7 @@ class ShaikhTonakMapper(MethodologyMapper):
         """Compute organic composition of capital: OCC = C / V.
 
         Args:
-            data: Dict with keys 'compensation', 'net_fixed_assets_current'.
+            data: Dict with keys 'compensation', 'net_fixed_assets_current' (K1PTOTL1ES000).
 
         Returns:
             pd.Series of OCC values indexed by date.
@@ -126,11 +136,14 @@ class ShaikhTonakMapper(MethodologyMapper):
     # ------------------------------------------------------------------
 
     def get_required_series(self) -> list[str]:
-        """Return FRED series IDs needed for core indicator computation."""
+        """Return series IDs needed for core indicator computation.
+
+        Returns both FRED and BEA series IDs.
+        """
         return [
-            SERIES_NATIONAL_INCOME,
-            SERIES_COMPENSATION,
-            SERIES_NET_FIXED_ASSETS_CURRENT,
+            SERIES_NATIONAL_INCOME,  # BEA:T11200:L1
+            SERIES_COMPENSATION,  # A576RC1
+            SERIES_NET_FIXED_ASSETS_CURRENT,  # K1PTOTL1ES000
         ]
 
     def get_documentation(self) -> list[IndicatorDoc]:
@@ -139,9 +152,12 @@ class ShaikhTonakMapper(MethodologyMapper):
             marx_category="national_income",
             nipa_table="T11200",
             nipa_line=1,
-            nipa_description="National income",
+            nipa_description="National income (total)",
             operation="direct",
-            notes="FRED series A053RC1Q027SBEA",
+            notes=(
+                "BEA series BEA:T11200:L1. Total national income from NIPA "
+                "Table 1.12, Line 1. Converted from millions to billions."
+            ),
         )
         comp_mapping = NIPAMapping(
             marx_category="variable_capital",
@@ -158,7 +174,7 @@ class ShaikhTonakMapper(MethodologyMapper):
             nipa_description="Current-cost net stock of private fixed assets",
             operation="direct",
             notes=(
-                "FRED series K1NTOTL1SI000. Shaikh/Tonak use current-cost "
+                "FRED series K1PTOTL1ES000. Shaikh/Tonak use current-cost "
                 "(replacement-cost) valuation, reflecting the actual cost of "
                 "reproducing the capital stock at current prices."
             ),
@@ -171,8 +187,9 @@ class ShaikhTonakMapper(MethodologyMapper):
                 formula_latex=r"r = \frac{S}{C + V}",
                 interpretation=(
                     "The general rate of profit measures the return on total "
-                    "capital advanced. S = National Income - Compensation, "
-                    "C = current-cost net fixed assets, V = compensation. "
+                    "capital advanced. S = Total National Income (BEA NIPA T11200:L1) "
+                    "minus Compensation, C = current-cost net fixed assets, "
+                    "V = compensation. All values normalized to billions USD. "
                     "Shaikh/Tonak's current-cost valuation shows the profit "
                     "rate relative to replacement-cost capital."
                 ),

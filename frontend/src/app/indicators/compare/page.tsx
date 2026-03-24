@@ -63,7 +63,8 @@ export default function ComparePage() {
 
     for (const [methodologySlug, indData] of entries) {
       for (const dp of indData.data) {
-        const existing = dateMap.get(dp.date) ?? { date: dp.date };
+        const normalizedDate = dp.date.slice(0, 10); // Normalize to YYYY-MM-DD for crisis annotations
+        const existing = dateMap.get(dp.date) ?? { date: normalizedDate };
         existing[methodologySlug] = dp.value;
         dateMap.set(dp.date, existing);
       }
@@ -154,14 +155,14 @@ export default function ComparePage() {
           {/* Legend */}
           <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
-              <div className="h-0.5 w-6 rounded-full bg-[hsl(var(--chart-1))]" />
+              <div className="h-0.5 w-6 rounded-full" style={{ backgroundColor: "var(--chart-1)" }} />
               <span>
                 {methodologyLabels[primaryKey] ?? primaryKey}
               </span>
             </div>
             {overlayKey && (
               <div className="flex items-center gap-1.5">
-                <div className="h-0.5 w-6 rounded-full bg-[hsl(var(--chart-2))]" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 3px, hsl(var(--chart-2)) 3px, hsl(var(--chart-2)) 6px)" }} />
+                <div className="h-0.5 w-6 rounded-full" style={{ backgroundColor: "var(--chart-2)" }} />
                 <span>
                   {methodologyLabels[overlayKey] ?? overlayKey}
                 </span>

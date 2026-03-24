@@ -154,21 +154,22 @@ class IngestionPipeline:
         Returns:
             Number of observations stored.
         """
-        count = 0
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        observations = []
         for date, value in data.items():
             is_gap = pd.isna(value)
 
-            obs = Observation(
-                observation_date=pd.Timestamp(date).to_pydatetime().replace(
+            obs_dict = {
+                "observation_date": pd.Timestamp(date).to_pydatetime().replace(
                     tzinfo=dt.timezone.utc
                 ),
-                series_id=series_id,
-                value=None if is_gap else float(value),
-                gap_flag=bool(is_gap),
-            )
-            # Use merge for upsert behavior (works with both SQLite and PG)
-            merged = await self.session.merge(obs)
-            count += 1
+                "series_id": series_id,
+                "value": None if is_gap else float(value),
+                "gap_flag": bool(is_gap),
+                "vintage_date": None,
+            }
+            observations.append(obs_dict)
 
             if is_gap:
                 logger.warning(
@@ -177,8 +178,27 @@ class IngestionPipeline:
                     date=str(date),
                 )
 
+        # Bulk upsert in batches to avoid asyncpg parameter limit (32767)
+        # With 5 params per row, batch size of 6000 = 30000 params (safe margin)
+        total_count = 0
+        batch_size = 6000
+
+        for i in range(0, len(observations), batch_size):
+            batch = observations[i:i + batch_size]
+            if batch:
+                stmt = pg_insert(Observation).values(batch)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["observation_date", "series_id"],
+                    set_={
+                        "value": stmt.excluded.value,
+                        "gap_flag": stmt.excluded.gap_flag,
+                    },
+                )
+                await self.session.execute(stmt)
+                total_count += len(batch)
+
         await self.session.flush()
-        return count
+        return total_count
 
     async def _store_bea_observations(
         self,
@@ -203,6 +223,24 @@ class IngestionPipeline:
         for line_num, group in data.groupby("LineNumber"):
             series_id = f"BEA:{table_name}:L{line_num}"
 
+            # Upsert metadata FIRST (required for foreign key constraint)
+            line_desc = ""
+            if "LineDescription" in data.columns:
+                descs = group["LineDescription"].unique()
+                line_desc = str(descs[0]) if len(descs) > 0 else ""
+
+            await self._upsert_metadata(
+                series_id=series_id,
+                source="BEA",
+                name=f"{table_name} - {line_desc}",
+                frequency="Q",
+                source_detail={"table_name": table_name, "line_number": int(line_num)},
+                observation_count=len(group),
+            )
+
+            # Store observations AFTER metadata exists
+            # Collect observations for bulk upsert
+            observations = []
             for _, row in group.iterrows():
                 time_period = str(row.get("TimePeriod", ""))
                 obs_date = self._parse_bea_time_period(time_period)
@@ -218,29 +256,34 @@ class IngestionPipeline:
                     value = None
                     is_gap = True
 
-                obs = Observation(
-                    observation_date=obs_date,
-                    series_id=series_id,
-                    value=None if is_gap else value,
-                    gap_flag=bool(is_gap),
-                )
-                await self.session.merge(obs)
-                total += 1
+                obs_dict = {
+                    "observation_date": obs_date,
+                    "series_id": series_id,
+                    "value": None if is_gap else value,
+                    "gap_flag": bool(is_gap),
+                    "vintage_date": None,
+                }
+                observations.append(obs_dict)
 
-            # Upsert metadata for this line
-            line_desc = ""
-            if "LineDescription" in data.columns:
-                descs = group["LineDescription"].unique()
-                line_desc = str(descs[0]) if len(descs) > 0 else ""
+            # Bulk upsert in batches to avoid asyncpg parameter limit (32767)
+            # With 5 params per row, batch size of 6000 = 30000 params (safe margin)
+            if observations:
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-            await self._upsert_metadata(
-                series_id=series_id,
-                source="BEA",
-                name=f"{table_name} - {line_desc}",
-                frequency="Q",
-                source_detail={"table_name": table_name, "line_number": int(line_num)},
-                observation_count=len(group),
-            )
+                batch_size = 6000
+                for i in range(0, len(observations), batch_size):
+                    batch = observations[i:i + batch_size]
+                    if batch:
+                        stmt = pg_insert(Observation).values(batch)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=["observation_date", "series_id"],
+                            set_={
+                                "value": stmt.excluded.value,
+                                "gap_flag": stmt.excluded.gap_flag,
+                            },
+                        )
+                        await self.session.execute(stmt)
+                        total += len(batch)
 
         await self.session.flush()
         return total
@@ -302,10 +345,21 @@ class IngestionPipeline:
         else:
             info = {"id": series_id}
 
-        # Store observations
+        # Upsert metadata FIRST (required for foreign key constraint)
+        await self._upsert_metadata(
+            series_id=series_id,
+            source="FRED",
+            name=str(info.get("title", info.get("name", series_id))),
+            frequency=self._infer_frequency(info),
+            units=info.get("units"),
+            seasonal_adjustment=info.get("seasonal_adjustment"),
+            observation_count=0,  # Will be updated after storing observations
+        )
+
+        # Store observations AFTER metadata exists
         count = await self._store_observations(series_id, data)
 
-        # Upsert metadata
+        # Update observation count in metadata
         await self._upsert_metadata(
             series_id=series_id,
             source="FRED",
@@ -365,6 +419,8 @@ class IngestionPipeline:
         for i, series_id in enumerate(fred_series):
             try:
                 count = await self.ingest_fred_series(series_id)
+                # Commit after each successful series to isolate failures
+                await self.session.commit()
                 result.series_processed += 1
                 result.observations_upserted += count
                 self._notify_progress({
@@ -382,11 +438,14 @@ class IngestionPipeline:
                     series_id=series_id,
                     error=str(e),
                 )
-                # Set metadata error status
+                # Rollback to clear the failed transaction state
+                await self.session.rollback()
+                # Set metadata error status in a new transaction
                 try:
                     await self._set_error_status(series_id, str(e))
+                    await self.session.commit()
                 except Exception:
-                    pass
+                    await self.session.rollback()
                 self._notify_progress({
                     "event": "progress",
                     "series_id": series_id,
@@ -423,6 +482,8 @@ class IngestionPipeline:
                     count = await self._store_bea_observations(table_id, data)
                 else:
                     count = await self.ingest_bea_table(table_id)
+                # Commit after each successful table
+                await self.session.commit()
                 result.series_processed += 1
                 result.observations_upserted += count
             except Exception as e:
@@ -433,6 +494,8 @@ class IngestionPipeline:
                     table_id=table_id,
                     error=str(e),
                 )
+                # Rollback to clear the failed transaction state
+                await self.session.rollback()
 
         self._notify_progress({"event": "complete", "result": result.to_dict()})
 

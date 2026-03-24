@@ -76,7 +76,7 @@ fred:
   - id: K1TTOTL1ES000
     name: Current-Cost Net Stock of Fixed Assets and Consumer Durable Goods
     category: capital
-  - id: K1NTOTL1SI000
+  - id: K1PTOTL1ES000
     name: Current-Cost Net Stock of Private Fixed Assets
     category: capital
   - id: K1N31GENI1ES000
@@ -213,6 +213,9 @@ fred:
     category: financial
   - id: BOGZ1FL073164003Q
     name: Nonfinancial Corporate Business Debt Securities Liability
+    category: financial
+  - id: BOGZ1FU106130001Q
+    name: Nonfinancial Corporate Business Interest Payments
     category: financial
   - id: GFDEBTN
     name: Federal Debt Total Public Debt

@@ -129,13 +129,13 @@ export function CoefficientHeatmap({
         isInteractive={true}
         theme={{
           text: {
-            fill: "hsl(var(--muted-foreground))",
+            fill: "var(--muted-foreground)",
             fontSize: 10,
           },
           tooltip: {
             container: {
-              background: "hsl(var(--card))",
-              color: "hsl(var(--card-foreground))",
+              background: "var(--card)",
+              color: "var(--card-foreground)",
               borderRadius: "0.5rem",
             },
           },

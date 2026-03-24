@@ -134,17 +134,17 @@ export function CrisisGauge({ data, loading, regimeLabel }: CrisisGaugeProps) {
           <ComponentBar
             label="TRPF"
             value={data.trpf_component}
-            color="hsl(var(--chart-1))"
+            color="var(--chart-1)"
           />
           <ComponentBar
             label="Realization"
             value={data.realization_component}
-            color="hsl(var(--chart-2))"
+            color="var(--chart-2)"
           />
           <ComponentBar
             label="Financial"
             value={data.financial_component}
-            color="hsl(var(--chart-3))"
+            color="var(--chart-3)"
           />
         </div>
 
@@ -171,10 +171,10 @@ export function CrisisGauge({ data, loading, regimeLabel }: CrisisGaugeProps) {
                 <YAxis domain={[0, 100]} hide />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "var(--card)",
+                    border: "1px solid var(--border)",
                     borderRadius: "0.5rem",
-                    color: "hsl(var(--card-foreground))",
+                    color: "var(--card-foreground)",
                     fontSize: 12,
                   }}
                   labelFormatter={(label) => `Date: ${label}`}

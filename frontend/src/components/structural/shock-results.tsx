@@ -144,24 +144,24 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
               type="number"
               domain={["auto", "auto"]}
               tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               fontSize={11}
             />
             <YAxis
               type="category"
               dataKey="code"
               width={70}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               fontSize={10}
               tickLine={false}
             />
             <Tooltip
-              cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
+              cursor={{ fill: "oklch(var(--muted) / 0.3)" }}
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
                 borderRadius: "0.5rem",
-                color: "hsl(var(--card-foreground))",
+                color: "var(--card-foreground)",
                 fontSize: 12,
               }}
               content={({ active, payload }) => {
@@ -177,15 +177,15 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
                 );
               }}
             />
-            <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" />
+            <ReferenceLine x={0} stroke="var(--muted-foreground)" />
             <Bar dataKey="impact" radius={[0, 4, 4, 0]}>
               {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={
                     entry.impact >= 0
-                      ? "hsl(var(--chart-2))"
-                      : "hsl(var(--destructive))"
+                      ? "var(--chart-2)"
+                      : "var(--destructive)"
                   }
                 />
               ))}

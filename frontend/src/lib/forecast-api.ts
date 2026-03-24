@@ -122,8 +122,10 @@ export async function fetchForecasts(
   indicator?: string,
   horizon?: number
 ): Promise<ForecastsResponse> {
+  // Convert frontend slug format (hyphens) to backend format (underscores)
+  const apiIndicator = indicator?.replace(/-/g, "_");
   return apiFetch<ForecastsResponse>("/api/forecasting/forecasts", {
-    indicator,
+    indicator: apiIndicator,
     horizon,
   });
 }

@@ -126,14 +126,14 @@ export function RegimeDetail({ data, loading }: RegimeDetailProps) {
                   type="category"
                   dataKey="name"
                   width={80}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "var(--card)",
+                    border: "1px solid var(--border)",
                     borderRadius: "0.5rem",
-                    color: "hsl(var(--card-foreground))",
+                    color: "var(--card-foreground)",
                     fontSize: 12,
                   }}
                 />
@@ -234,10 +234,10 @@ export function RegimeDetail({ data, loading }: RegimeDetailProps) {
                   <YAxis domain={[0, 1]} hide />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
+                      backgroundColor: "var(--card)",
+                      border: "1px solid var(--border)",
                       borderRadius: "0.5rem",
-                      color: "hsl(var(--card-foreground))",
+                      color: "var(--card-foreground)",
                       fontSize: 12,
                     }}
                   />

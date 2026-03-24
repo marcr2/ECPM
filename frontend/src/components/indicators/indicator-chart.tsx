@@ -11,9 +11,10 @@ import {
   Brush,
   ResponsiveContainer,
   Legend,
+  ReferenceArea,
+  ReferenceLine,
 } from "recharts";
 import { CRISIS_EPISODES } from "@/lib/crisis-episodes";
-import { CrisisAnnotations } from "./crisis-annotations";
 import type { ForecastPoint } from "@/lib/forecast-api";
 
 interface IndicatorChartProps {
@@ -54,6 +55,7 @@ export function IndicatorChart({
   const chartData = forecastData
     ? mergeWithForecast(data, forecastData)
     : data;
+
   /**
    * Format date as year only for the x-axis tick labels.
    * Full dates are shown in the tooltip.
@@ -64,33 +66,77 @@ export function IndicatorChart({
     return year;
   }
 
+  /**
+   * Map crisis episodes to nearest actual data points.
+   * Recharts ReferenceArea with type="category" XAxis requires exact matches.
+   */
+  function findNearestDate(targetDate: string): string | null {
+    if (chartData.length === 0) return null;
+
+    const target = new Date(targetDate).getTime();
+    let nearest = chartData[0].date;
+    let minDiff = Math.abs(new Date(chartData[0].date).getTime() - target);
+
+    for (const point of chartData) {
+      const diff = Math.abs(new Date(point.date).getTime() - target);
+      if (diff < minDiff) {
+        minDiff = diff;
+        nearest = point.date;
+      }
+    }
+
+    return nearest;
+  }
+
+  const mappedCrises = CRISIS_EPISODES.map(crisis => {
+    const mappedStart = findNearestDate(crisis.startDate) ?? crisis.startDate;
+    const mappedEnd = findNearestDate(crisis.endDate) ?? crisis.endDate;
+
+    return {
+      ...crisis,
+      startDate: mappedStart,
+      endDate: mappedEnd,
+    };
+  }).filter(crisis => {
+    // Filter out crises where start and end are the same (outside data range)
+    // or where the crisis doesn't overlap with the chart data
+    return crisis.startDate !== crisis.endDate;
+  });
+
+
+
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={chartData}>
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="hsl(var(--border))"
+          stroke="var(--border)"
+          opacity={0.3}
         />
         <XAxis
           dataKey="date"
           tickFormatter={formatDateTick}
-          stroke="hsl(var(--muted-foreground))"
+          stroke="var(--foreground)"
           fontSize={12}
           tickLine={false}
+          opacity={0.7}
         />
         <YAxis
           yAxisId="left"
           orientation="left"
-          stroke="hsl(var(--muted-foreground))"
+          stroke="var(--foreground)"
           fontSize={12}
           tickLine={false}
+          opacity={0.7}
           label={{
             value: primaryLabel,
             angle: -90,
             position: "insideLeft",
             style: {
-              fill: "hsl(var(--muted-foreground))",
+              fill: "var(--foreground)",
               fontSize: 11,
+              opacity: 0.7,
             },
           }}
         />
@@ -98,41 +144,106 @@ export function IndicatorChart({
           <YAxis
             yAxisId="right"
             orientation="right"
-            stroke="hsl(var(--muted-foreground))"
+            stroke="var(--foreground)"
             fontSize={12}
             tickLine={false}
+            opacity={0.7}
             label={{
               value: overlayLabel ?? overlayKey,
               angle: 90,
               position: "insideRight",
               style: {
-                fill: "hsl(var(--muted-foreground))",
+                fill: "var(--foreground)",
                 fontSize: 11,
+                opacity: 0.7,
               },
             }}
           />
         )}
         <Tooltip
           contentStyle={{
-            backgroundColor: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
+            backgroundColor: "var(--card)",
+            border: "1px solid var(--border)",
             borderRadius: "0.5rem",
-            color: "hsl(var(--card-foreground))",
+            color: "var(--card-foreground)",
             fontSize: 12,
           }}
         />
         <Legend
           wrapperStyle={{
             fontSize: 12,
-            color: "hsl(var(--muted-foreground))",
+            color: "var(--muted-foreground)",
           }}
         />
+        {/* Crisis annotations MUST come before Line elements for proper z-ordering */}
+        {crisisMode === "shaded" && mappedCrises.map((crisis) => (
+          <ReferenceArea
+            key={crisis.name}
+            x1={crisis.startDate}
+            x2={crisis.endDate}
+            fill={crisis.color}
+            fillOpacity={0.15}
+            stroke={crisis.color}
+            strokeOpacity={0.4}
+            yAxisId="left"
+            ifOverflow="extendDomain"
+            label={{
+              value: crisis.name,
+              position: "center",
+              fill: crisis.color,
+              fontSize: 14,
+              fontWeight: 700,
+              angle: -90,
+            }}
+          />
+        ))}
+        {crisisMode === "lines" && mappedCrises.flatMap((crisis) => [
+          // Transparent area just for the centered label
+          <ReferenceArea
+            key={`${crisis.name}-label`}
+            x1={crisis.startDate}
+            x2={crisis.endDate}
+            fill="transparent"
+            fillOpacity={0}
+            stroke="none"
+            yAxisId="left"
+            ifOverflow="extendDomain"
+            label={{
+              value: crisis.name,
+              position: "center",
+              fontSize: 14,
+              fontWeight: 700,
+              fill: crisis.color,
+              angle: -90,
+            }}
+          />,
+          // Start line
+          <ReferenceLine
+            key={`${crisis.name}-start`}
+            x={crisis.startDate}
+            stroke={crisis.color}
+            strokeWidth={3}
+            strokeDasharray="5 5"
+            yAxisId="left"
+            ifOverflow="extendDomain"
+          />,
+          // End line
+          <ReferenceLine
+            key={`${crisis.name}-end`}
+            x={crisis.endDate}
+            stroke={crisis.color}
+            strokeWidth={3}
+            strokeDasharray="5 5"
+            yAxisId="left"
+            ifOverflow="extendDomain"
+          />,
+        ])}
         <Line
           yAxisId="left"
           type="monotone"
           dataKey={primaryKey}
           name={primaryLabel}
-          stroke="hsl(var(--chart-1))"
+          stroke="var(--chart-1)"
           strokeWidth={2}
           dot={false}
           connectNulls
@@ -146,7 +257,7 @@ export function IndicatorChart({
               type="monotone"
               dataKey="ci_95"
               name="95% CI"
-              fill="hsl(var(--chart-3))"
+              fill="var(--chart-3)"
               fillOpacity={0.1}
               stroke="none"
               legendType="none"
@@ -157,7 +268,7 @@ export function IndicatorChart({
               type="monotone"
               dataKey="ci_68"
               name="68% CI"
-              fill="hsl(var(--chart-3))"
+              fill="var(--chart-3)"
               fillOpacity={0.2}
               stroke="none"
               legendType="none"
@@ -168,7 +279,7 @@ export function IndicatorChart({
               type="monotone"
               dataKey="forecast"
               name="Forecast (8Q horizon)"
-              stroke="hsl(var(--chart-3))"
+              stroke="var(--chart-3)"
               strokeWidth={2}
               strokeDasharray="5 5"
               dot={false}
@@ -182,22 +293,18 @@ export function IndicatorChart({
             type="monotone"
             dataKey={overlayKey}
             name={overlayLabel ?? overlayKey}
-            stroke="hsl(var(--chart-2))"
+            stroke="var(--chart-2)"
             strokeWidth={2}
             dot={false}
             connectNulls
             strokeDasharray="5 3"
           />
         )}
-        <CrisisAnnotations
-          crises={CRISIS_EPISODES}
-          visible={crisisMode}
-        />
         <Brush
           dataKey="date"
           height={30}
-          stroke="hsl(var(--primary))"
-          fill="hsl(var(--muted))"
+          stroke="var(--primary)"
+          fill="var(--muted)"
           tickFormatter={formatDateTick}
         />
       </ComposedChart>

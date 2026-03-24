@@ -31,11 +31,12 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 # Core series (used by methodology-dependent indicators)
+# Note: BEA series are in millions, FRED series may be in billions - check units!
 _FRED_TO_KEY: dict[str, str] = {
-    "A053RC1Q027SBEA": "national_income",
-    "A576RC1": "compensation",
-    "K1NTOTL1SI000": "net_fixed_assets_current",
-    "K1NTOTL1HI000": "net_fixed_assets_historical",
+    "BEA:T11200:L1": "national_income",  # BEA NIPA Table 1.12, Line 1 (in millions)
+    "A576RC1": "compensation",  # FRED (in billions)
+    "K1PTOTL1ES000": "net_fixed_assets_current",  # FRED (in millions)
+    "K1NTOTL1HI000": "net_fixed_assets_historical",  # FRED
 }
 
 # Per-indicator financial FRED-to-key mappings.
@@ -54,20 +55,27 @@ _FINANCIAL_INDICATOR_MAPPINGS: dict[str, dict[str, str]] = {
     },
     IndicatorSlug.financial_real_ratio: {
         "BOGZ1FL073164003Q": "financial_assets",
-        "K1NTOTL1SI000": "real_assets",
+        "K1PTOTL1ES000": "real_assets",
     },
     IndicatorSlug.debt_service_ratio: {
-        "BOGZ1FA096130001Q": "debt_service",
+        "BOGZ1FU106130001Q": "debt_service",
         "A445RC1Q027SBEA": "corporate_income",
     },
 }
+
+# Flatten financial indicator mappings into FRED_ID -> key mapping
+# Used by _fetch_series_from_db when key_mapping is None
+_FINANCIAL_FRED_TO_KEY: dict[str, str] = {}
+for _indicator_slug, _mapping in _FINANCIAL_INDICATOR_MAPPINGS.items():
+    for _key, _series_id in _mapping.items():
+        _FINANCIAL_FRED_TO_KEY[_series_id] = _key
 
 # Financial indicator slugs and their required FRED series
 _FINANCIAL_SERIES: dict[str, list[str]] = {
     IndicatorSlug.productivity_wage_gap: ["OPHNFB", "PRS85006092"],
     IndicatorSlug.credit_gdp_gap: ["BOGZ1FL073164003Q", "GDP"],
-    IndicatorSlug.financial_real_ratio: ["BOGZ1FL073164003Q", "K1NTOTL1SI000"],
-    IndicatorSlug.debt_service_ratio: ["BOGZ1FA096130001Q", "A445RC1Q027SBEA"],
+    IndicatorSlug.financial_real_ratio: ["BOGZ1FL073164003Q", "K1PTOTL1ES000"],
+    IndicatorSlug.debt_service_ratio: ["BOGZ1FU106130001Q", "A445RC1Q027SBEA"],
 }
 
 # ---------------------------------------------------------------------------
@@ -232,7 +240,7 @@ async def compute_indicator(
     # Core indicators use _FRED_TO_KEY; financial indicators use their own
     # per-indicator mapping from _FINANCIAL_INDICATOR_MAPPINGS.
     # This avoids key collisions where the same FRED series ID maps to
-    # different descriptive keys in different contexts (e.g., K1NTOTL1SI000
+    # different descriptive keys in different contexts (e.g., K1PTOTL1ES000
     # maps to "net_fixed_assets_current" for core, "real_assets" for financial).
     series_ids = _get_required_series_ids(slug, mapper)
     if _is_financial_indicator(slug):
@@ -285,7 +293,11 @@ async def compute_all_summaries(
                 slug.value, methodology_slug, db, redis=redis
             )
 
-            if len(series) == 0:
+            # Filter out NaN values to get the actual latest non-NaN value
+            import math
+            non_nan_series = series.dropna()
+
+            if len(non_nan_series) == 0:
                 summaries.append(
                     {
                         "slug": slug.value,
@@ -299,12 +311,12 @@ async def compute_all_summaries(
                 )
                 continue
 
-            latest_value = float(series.iloc[-1])
-            latest_date = series.index[-1].isoformat()
+            latest_value = float(non_nan_series.iloc[-1])
+            latest_date = non_nan_series.index[-1].isoformat()
 
-            # Determine trend from last 2 values
-            if len(series) >= 2:
-                diff = series.iloc[-1] - series.iloc[-2]
+            # Determine trend from last 2 non-NaN values
+            if len(non_nan_series) >= 2:
+                diff = non_nan_series.iloc[-1] - non_nan_series.iloc[-2]
                 if abs(diff) < 1e-6:
                     trend = "flat"
                 elif diff > 0:
@@ -314,8 +326,8 @@ async def compute_all_summaries(
             else:
                 trend = "flat"
 
-            # Sparkline: last 20 values
-            sparkline = series.tail(20).tolist()
+            # Sparkline: last 20 non-NaN values
+            sparkline = non_nan_series.tail(20).tolist()
 
             summaries.append(
                 {

@@ -152,7 +152,7 @@ export default function IndicatorDetailPage({
 
     if (!overlayData || !overlaySlug) {
       return filteredData.map((dp) => ({
-        date: dp.date,
+        date: dp.date.slice(0, 10), // Normalize to YYYY-MM-DD for crisis annotations
         [primaryKey]: dp.value,
       }));
     }
@@ -163,7 +163,7 @@ export default function IndicatorDetailPage({
     );
 
     return filteredData.map((dp) => ({
-      date: dp.date,
+      date: dp.date.slice(0, 10), // Normalize to YYYY-MM-DD for crisis annotations
       [primaryKey]: dp.value,
       ...(overlayMap.has(dp.date) ? { overlay: overlayMap.get(dp.date) } : {}),
     }));

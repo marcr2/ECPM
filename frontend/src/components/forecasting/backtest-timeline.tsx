@@ -131,27 +131,27 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
           <ComposedChart data={episode.crisis_index_series}>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
+              stroke="var(--border)"
             />
             <XAxis
               dataKey="date"
               tickFormatter={formatDateTick}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               fontSize={12}
               tickLine={false}
             />
             <YAxis
               domain={[0, 100]}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               fontSize={12}
               tickLine={false}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
                 borderRadius: "0.5rem",
-                color: "hsl(var(--card-foreground))",
+                color: "var(--card-foreground)",
                 fontSize: 12,
               }}
             />
@@ -160,32 +160,32 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
             <ReferenceArea
               x1={episode.start_date}
               x2={episode.end_date}
-              fill="hsl(var(--destructive))"
+              fill="var(--destructive)"
               fillOpacity={0.15}
-              stroke="hsl(var(--destructive))"
+              stroke="var(--destructive)"
               strokeOpacity={0.3}
             />
 
             {/* Warning markers */}
             <ReferenceLine
               x={formatDate(warning24Date)}
-              stroke="hsl(var(--chart-2))"
+              stroke="var(--chart-2)"
               strokeDasharray="5 3"
               label={{
                 value: "-24mo",
                 position: "top",
-                fill: "hsl(var(--muted-foreground))",
+                fill: "var(--muted-foreground)",
                 fontSize: 10,
               }}
             />
             <ReferenceLine
               x={formatDate(warning12Date)}
-              stroke="hsl(var(--chart-3))"
+              stroke="var(--chart-3)"
               strokeDasharray="5 3"
               label={{
                 value: "-12mo",
                 position: "top",
-                fill: "hsl(var(--muted-foreground))",
+                fill: "var(--muted-foreground)",
                 fontSize: 10,
               }}
             />
@@ -193,12 +193,12 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
             {/* Peak marker */}
             <ReferenceLine
               x={episode.peak_date}
-              stroke="hsl(var(--destructive))"
+              stroke="var(--destructive)"
               strokeWidth={2}
               label={{
                 value: "Peak",
                 position: "top",
-                fill: "hsl(var(--destructive))",
+                fill: "var(--destructive)",
                 fontSize: 10,
               }}
             />
@@ -208,7 +208,7 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
               type="monotone"
               dataKey="value"
               name="Crisis Index"
-              stroke="hsl(var(--chart-1))"
+              stroke="var(--chart-1)"
               strokeWidth={2}
               dot={false}
               connectNulls

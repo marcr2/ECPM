@@ -76,8 +76,9 @@ export default function IndicatorOverviewPage() {
   if (!overview) return null;
 
   // Build a lookup from slug to API summary data
+  // Convert backend slugs (underscores) to frontend format (hyphens)
   const summaryMap = new Map(
-    overview.indicators.map((ind) => [ind.slug, ind])
+    overview.indicators.map((ind) => [ind.slug.replace(/_/g, "-"), ind])
   );
 
   return (

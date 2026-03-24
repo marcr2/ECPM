@@ -69,14 +69,22 @@ def compute_credit_gdp_gap(data: dict[str, pd.Series]) -> pd.Series:
     Returns:
         pd.Series of gap values in percentage points.
     """
-    credit = data["credit_total"]
-    gdp = data["nominal_gdp"]
+    credit = data["credit_total"] / 1000.0  # Convert millions to billions
+    gdp = data["nominal_gdp"]  # Already in billions
 
     ratio = (credit / gdp) * 100  # percentage
 
+    # Drop NaN values before HP filter (filter can't handle NaN)
+    ratio_clean = ratio.dropna()
+    if len(ratio_clean) == 0:
+        return ratio  # Return all NaN if no valid data
+
     # One-sided HP filter (recursive approximation, BIS lambda=400,000)
-    trend = _one_sided_hp_filter(ratio.values, lamb=400_000)
-    gap = ratio - pd.Series(trend, index=ratio.index)
+    trend = _one_sided_hp_filter(ratio_clean.values, lamb=400_000)
+    gap_clean = ratio_clean - pd.Series(trend, index=ratio_clean.index)
+
+    # Re-align with original index (fills NaN where data was missing)
+    gap = gap_clean.reindex(ratio.index)
     return gap
 
 
@@ -85,7 +93,7 @@ def compute_financial_real_ratio(data: dict[str, pd.Series]) -> pd.Series:
 
     Uses FRED series:
         - BOGZ1FL073164003Q (financial corporate debt proxy) -> key: "financial_assets"
-        - K1NTOTL1SI000 (tangible/real assets) -> key: "real_assets"
+        - K1PTOTL1ES000 (tangible/real assets) -> key: "real_assets"
 
     Simple ratio: financial / real.
 
@@ -102,11 +110,11 @@ def compute_debt_service_ratio(data: dict[str, pd.Series]) -> pd.Series:
     """Compute corporate debt service ratio.
 
     Uses FRED series:
-        - BOGZ1FA096130001Q (interest payments, nonfinancial corporate)
+        - BOGZ1FU106130001Q (interest payments, nonfinancial corporate)
           -> key: "debt_service"
-        - A445RC1Q027SBEA (net operating surplus) -> key: "corporate_income"
+        - A445RC1Q027SBEA (corporate profits before tax) -> key: "corporate_income"
 
-    Ratio = interest / operating_surplus * 100 (as percent).
+    Ratio = interest / corporate_income * 100 (as percent).
 
     Args:
         data: Must contain 'debt_service' and 'corporate_income'.
@@ -114,4 +122,6 @@ def compute_debt_service_ratio(data: dict[str, pd.Series]) -> pd.Series:
     Returns:
         pd.Series of ratio values in percent.
     """
-    return (data["debt_service"] / data["corporate_income"]) * 100
+    debt_service = data["debt_service"] / 1000.0  # Convert millions to billions
+    corporate_income = data["corporate_income"]  # Already in billions
+    return (debt_service / corporate_income) * 100

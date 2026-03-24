@@ -113,6 +113,20 @@ class TestForecastsEndpoint:
         validated = ForecastsResponse.model_validate(data)
         assert isinstance(validated.forecasts, dict)
 
+    def test_get_forecasts_invalid_indicator(self, sync_client):
+        """Should return 400 for invalid indicator slug."""
+        response = sync_client.get("/api/forecasting/forecasts?indicator=invalid_slug")
+
+        assert response.status_code == 400
+        assert "Invalid indicator" in response.json()["detail"]
+
+    def test_get_forecasts_valid_indicator_filter(self, sync_client):
+        """Should accept valid indicator slug, returning 404 if no cached data."""
+        response = sync_client.get("/api/forecasting/forecasts?indicator=rate_of_profit")
+
+        # Either 404 (no cached data) or 200 with filtered results
+        assert response.status_code in (200, 404)
+
 
 class TestRegimeEndpoint:
     """GET /api/forecasting/regime returns regime detection results."""
@@ -202,4 +216,42 @@ class TestTrainingTrigger:
 
         data = response.json()
         assert "task_id" in data
+        assert "status" in data
         assert isinstance(data["task_id"], str)
+        assert data["status"] == "accepted"
+
+    def test_trigger_training_returns_response_model(self, sync_client):
+        """Should return TrainingStartResponse with task_id and status fields."""
+        response = sync_client.post("/api/forecasting/train")
+
+        # Skip if Celery not available
+        if response.status_code in (500, 503):
+            return
+
+        data = response.json()
+        # Validate response matches TrainingStartResponse model
+        assert "task_id" in data
+        assert "status" in data
+
+
+class TestTaskStatus:
+    """GET /api/forecasting/train/{task_id} returns task status."""
+
+    def test_get_task_status(self, sync_client):
+        """Should return 200 with task status, or 503 if Celery/Redis not available."""
+        # Use a dummy task_id since we can't trigger real tasks in tests
+        task_id = "test-task-id-12345"
+        response = sync_client.get(f"/api/forecasting/train/{task_id}")
+
+        # 503 is expected when Celery or Redis is not available in test environment
+        if response.status_code == 503:
+            # This is the expected behavior in test environment
+            return
+
+        # If infrastructure is available (e.g., integration tests)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "task_id" in data
+        assert "status" in data
+        assert data["task_id"] == task_id

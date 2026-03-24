@@ -97,11 +97,11 @@ export default function MethodologyPage() {
       {/* Table of Contents */}
       <nav className="rounded-xl border border-border bg-card p-4">
         <h3 className="mb-2 text-sm font-medium">Contents</h3>
-        <ul className="columns-2 gap-4 text-xs text-muted-foreground">
+        <ul className="columns-2 text-xs text-muted-foreground" style={{ columnGap: "1rem" }}>
           {[...allSlugs].map((slug) => {
             const doc = stMap.get(slug) ?? klMap.get(slug);
             return (
-              <li key={slug} className="mb-1">
+              <li key={slug} className="mb-1 break-inside-avoid">
                 <a
                   href={`#${slug}`}
                   className="hover:text-foreground hover:underline"
@@ -111,7 +111,7 @@ export default function MethodologyPage() {
               </li>
             );
           })}
-          <li className="mb-1">
+          <li className="mb-1 break-inside-avoid">
             <a
               href="#comparison"
               className="hover:text-foreground hover:underline"
