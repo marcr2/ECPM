@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Active
-stopped_at: Completed quick-001-PLAN.md
-last_updated: "2026-03-23T22:00:00.000Z"
-last_activity: 2026-03-23 -- Completed quick-001-PLAN.md (Wave 2 - Celery training pipeline + FastAPI forecasting endpoints)
+stopped_at: Completed quick-002-PLAN.md
+last_updated: "2026-03-24T00:20:14.000Z"
+last_activity: 2026-03-24 -- Completed quick-002-PLAN.md (Wave 3 - Frontend forecasting UI)
 progress:
   total_phases: 5
   completed_phases: 1
@@ -28,12 +28,13 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 Phase: 3 of 5 (Predictive Modeling and Crisis Index)
 Plan: 2 of 5 in current phase (03-02 COMPLETE)
 Status: Active
-Last activity: 2026-03-23 -- Completed quick-001-PLAN.md (Wave 2 - Celery training pipeline + FastAPI forecasting endpoints)
+Last activity: 2026-03-24 -- Completed quick-002-PLAN.md (Wave 3 - Frontend forecasting UI)
 
 Progress: [████████░░] 76%
 
 ### Quick Tasks
 - quick-001: Wave 2 ECPM completion (Celery pipeline + forecasting API) - COMPLETE
+- quick-002: Wave 3 Frontend forecasting UI - COMPLETE
 
 ## Performance Metrics
 
@@ -106,6 +107,8 @@ Recent decisions affecting current work:
 - [quick-001]: Versioned Redis keys (ecpm:forecasts:v{timestamp}) with 3600s TTL for data, no TTL for 'latest' pointers
 - [quick-001]: Sync redis.StrictRedis in Celery tasks (not async - Celery workers are synchronous)
 - [quick-001]: Progress channel 'ecpm:training:progress' for pubsub-based SSE streaming
+- [quick-002]: SSE subscription pattern returns EventSource for caller cleanup
+- [quick-002]: Removed Recharts Tooltip formatter props due to Recharts 3 strict typing
 
 ### Pending Todos
 
@@ -119,6 +122,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T22:00:00.000Z
-Stopped at: Completed quick-001-PLAN.md
+Last session: 2026-03-24T00:20:14.000Z
+Stopped at: Completed quick-002-PLAN.md
 Resume file: None
