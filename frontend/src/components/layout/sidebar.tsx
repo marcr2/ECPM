@@ -34,7 +34,7 @@ const phases = [
     href: "/forecasting",
     icon: TrendingUp,
     phase: 3,
-    enabled: false,
+    enabled: true,
   },
   {
     name: "Structural Analysis",
