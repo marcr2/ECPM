@@ -30,13 +30,20 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
 )
 
-# Beat schedule for daily data refresh (DATA-05)
+# Beat schedule for daily data refresh (DATA-05) and model retrain
 celery_app.conf.beat_schedule = {
     "daily-data-refresh": {
         "task": "ecpm.tasks.fetch_tasks.fetch_all_series",
         "schedule": crontab(
             hour=settings.fetch_schedule_hour,
             minute=settings.fetch_schedule_minute,
+        ),
+    },
+    "daily-model-retrain": {
+        "task": "ecpm.tasks.training_tasks.run_training_pipeline",
+        "schedule": crontab(
+            hour=settings.fetch_schedule_hour,
+            minute=settings.fetch_schedule_minute + 5,  # 5 min after data refresh
         ),
     },
 }
