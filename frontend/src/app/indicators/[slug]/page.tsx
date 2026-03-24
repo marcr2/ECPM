@@ -7,6 +7,10 @@ import {
   type IndicatorData,
   type IndicatorMethodologyDoc,
 } from "@/lib/indicators";
+import {
+  fetchForecasts,
+  type ForecastPoint,
+} from "@/lib/forecast-api";
 import { INDICATOR_DEFS, type IndicatorDef } from "@/lib/indicator-defs";
 import { IndicatorChart } from "@/components/indicators/indicator-chart";
 import { DateRangeControls } from "@/components/indicators/date-range-controls";
@@ -41,6 +45,9 @@ export default function IndicatorDetailPage({
   const [dateRange, setDateRange] = useState<number | null>(null);
   const [overlaySlug, setOverlaySlug] = useState<string | null>(null);
   const [crisisMode, setCrisisMode] = useState<"shaded" | "lines" | "hidden">("shaded");
+  const [showForecast, setShowForecast] = useState(false);
+  const [forecastData, setForecastData] = useState<ForecastPoint[] | null>(null);
+  const [forecastUnavailable, setForecastUnavailable] = useState(false);
 
   const def: IndicatorDef | undefined = INDICATOR_DEFS.find(
     (d) => d.slug === slug
@@ -99,6 +106,32 @@ export default function IndicatorDetailPage({
     }
     loadOverlay();
   }, [overlaySlug, methodology]);
+
+  // Load forecast data when toggle is enabled
+  useEffect(() => {
+    if (!showForecast) {
+      setForecastData(null);
+      return;
+    }
+    async function loadForecast() {
+      try {
+        const response = await fetchForecasts(slug);
+        const indicatorForecast = response.forecasts[slug];
+        if (indicatorForecast?.forecasts) {
+          setForecastData(indicatorForecast.forecasts);
+          setForecastUnavailable(false);
+        } else {
+          setForecastData(null);
+          setForecastUnavailable(true);
+        }
+      } catch {
+        // 404 or other error -- forecast not available
+        setForecastData(null);
+        setForecastUnavailable(true);
+      }
+    }
+    loadForecast();
+  }, [showForecast, slug]);
 
   // Filter data by date range
   const filteredData = useMemo(() => {
@@ -194,6 +227,7 @@ export default function IndicatorDetailPage({
           overlayLabel={overlayDef?.name}
           crisisMode={crisisMode}
           height={420}
+          forecastData={showForecast && forecastData ? forecastData : undefined}
         />
       </div>
 
@@ -237,6 +271,22 @@ export default function IndicatorDetailPage({
               </Button>
             ))}
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Forecast:
+          </span>
+          <Button
+            variant={showForecast ? "default" : "outline"}
+            size="xs"
+            onClick={() => setShowForecast(!showForecast)}
+            disabled={forecastUnavailable}
+            className="rounded-md"
+            title={forecastUnavailable ? "Forecast not available for this indicator" : "Toggle forecast overlay"}
+          >
+            {showForecast ? "On" : "Off"}
+          </Button>
         </div>
       </div>
 
