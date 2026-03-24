@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Active
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-23T21:30:15.030Z"
-last_activity: 2026-03-23 -- Completed 03-02-PLAN.md (Core modeling modules - stationarity, VAR/SVAR, regime-switching, crisis index, backtest)
+stopped_at: Completed quick-001-PLAN.md
+last_updated: "2026-03-23T22:00:00.000Z"
+last_activity: 2026-03-23 -- Completed quick-001-PLAN.md (Wave 2 - Celery training pipeline + FastAPI forecasting endpoints)
 progress:
   total_phases: 5
   completed_phases: 1
@@ -28,9 +28,12 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 Phase: 3 of 5 (Predictive Modeling and Crisis Index)
 Plan: 2 of 5 in current phase (03-02 COMPLETE)
 Status: Active
-Last activity: 2026-03-23 -- Completed 03-02-PLAN.md (Core modeling modules - stationarity, VAR/SVAR, regime-switching, crisis index, backtest)
+Last activity: 2026-03-23 -- Completed quick-001-PLAN.md (Wave 2 - Celery training pipeline + FastAPI forecasting endpoints)
 
 Progress: [████████░░] 76%
+
+### Quick Tasks
+- quick-001: Wave 2 ECPM completion (Celery pipeline + forecasting API) - COMPLETE
 
 ## Performance Metrics
 
@@ -100,6 +103,9 @@ Recent decisions affecting current work:
 - [Phase 03-02]: Global cross-sectional percentile normalization for crisis index to preserve absolute level sensitivity
 - [Phase 03-02]: Markov transition matrix transposed to standard convention (rows sum to 1) from statsmodels convention (columns sum to 1)
 - [Phase 03-02]: SVAR fitting returns None on convergence failure for graceful degradation
+- [quick-001]: Versioned Redis keys (ecpm:forecasts:v{timestamp}) with 3600s TTL for data, no TTL for 'latest' pointers
+- [quick-001]: Sync redis.StrictRedis in Celery tasks (not async - Celery workers are synchronous)
+- [quick-001]: Progress channel 'ecpm:training:progress' for pubsub-based SSE streaming
 
 ### Pending Todos
 
@@ -113,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T21:30:15.025Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-03-23T22:00:00.000Z
+Stopped at: Completed quick-001-PLAN.md
 Resume file: None
