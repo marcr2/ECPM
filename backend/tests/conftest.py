@@ -374,3 +374,156 @@ def synthetic_regime_series():
 
     dates = pd.date_range("1948-01-01", periods=n, freq="QS")
     return pd.Series(series, index=dates, name="regime_test")
+
+
+# ---------------------------------------------------------------------------
+# Synthetic I-O fixtures for structural analysis tests (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def synthetic_use_matrix_3x3():
+    """3x3 synthetic Use matrix with known analytical Leontief inverse.
+
+    Matrix represents intermediate inputs between 3 industries.
+    Values chosen so that technical coefficients yield a stable Leontief inverse.
+
+    Use matrix Z (intermediate inputs):
+        |  10   5   2 |
+        |   3  15   4 |
+        |   2   3  12 |
+
+    Total outputs X = [100, 100, 100] (for simple coefficient calculation)
+    """
+    import numpy as np
+
+    return np.array(
+        [
+            [10.0, 5.0, 2.0],
+            [3.0, 15.0, 4.0],
+            [2.0, 3.0, 12.0],
+        ]
+    )
+
+
+@pytest.fixture
+def synthetic_total_output_3x3():
+    """Total output vector for the 3x3 synthetic I-O system.
+
+    X = [100, 100, 100] for each industry.
+    """
+    import numpy as np
+
+    return np.array([100.0, 100.0, 100.0])
+
+
+@pytest.fixture
+def synthetic_leontief_inverse_3x3(synthetic_use_matrix_3x3, synthetic_total_output_3x3):
+    """Pre-computed Leontief inverse for the 3x3 synthetic system.
+
+    L = (I - A)^-1 where A[i,j] = Z[i,j] / X[j]
+
+    For Z given above and X = [100, 100, 100]:
+        A = [[ 0.10,  0.05,  0.02],
+             [ 0.03,  0.15,  0.04],
+             [ 0.02,  0.03,  0.12]]
+
+    Computed via numpy.linalg.inv(I - A).
+    """
+    import numpy as np
+
+    # Compute A = Z / X (column-wise division)
+    A = synthetic_use_matrix_3x3 / synthetic_total_output_3x3
+
+    # Leontief inverse
+    I = np.eye(3)
+    L = np.linalg.inv(I - A)
+
+    return L
+
+
+@pytest.fixture
+def synthetic_dept_classification():
+    """Sample NAICS-to-Department mapping for testing.
+
+    Maps a small set of NAICS codes to Dept I or Dept II.
+    """
+    return {
+        "211": "Dept_I",      # Mining - oil and gas extraction
+        "22": "Dept_I",       # Utilities
+        "23": "Dept_I",       # Construction
+        "333": "Dept_I",      # Machinery manufacturing
+        "331": "Dept_I",      # Primary metals
+        "44": "Dept_II",      # Retail trade
+        "45": "Dept_II",      # Retail trade
+        "62": "Dept_II",      # Healthcare
+        "72": "Dept_II",      # Accommodation and food services
+        "81": "Dept_II",      # Other services
+    }
+
+
+@pytest.fixture
+def mock_bea_io_client():
+    """Mock BEA IO client for testing structural analysis.
+
+    Returns MagicMock with canned responses for I-O table methods.
+    """
+    if not _HAS_PANDAS:
+        pytest.skip("pandas not installed")
+
+    client = MagicMock()
+
+    # Mock discover_table_id
+    def _discover_table_id(table_type: str) -> int:
+        if table_type == "use":
+            return 259
+        elif table_type == "make":
+            return 47
+        else:
+            raise ValueError(f"Unknown table type: {table_type}")
+
+    client.discover_table_id = MagicMock(side_effect=_discover_table_id)
+
+    # Mock fetch_io_table (raw response)
+    raw_io_data = pd.DataFrame(
+        {
+            "RowCode": ["A", "A", "A", "B", "B", "B", "C", "C", "C"],
+            "ColCode": ["A", "B", "C", "A", "B", "C", "A", "B", "C"],
+            "RowDescr": ["Industry A"] * 3 + ["Industry B"] * 3 + ["Industry C"] * 3,
+            "ColDescr": ["Industry A", "Industry B", "Industry C"] * 3,
+            "DataValue": [10.0, 5.0, 2.0, 3.0, 15.0, 4.0, 2.0, 3.0, 12.0],
+            "Year": ["2022"] * 9,
+        }
+    )
+    client.fetch_io_table = MagicMock(return_value=raw_io_data)
+
+    # Mock fetch_use_table (pivoted matrix)
+    use_matrix = pd.DataFrame(
+        {
+            "A": [10.0, 3.0, 2.0],
+            "B": [5.0, 15.0, 3.0],
+            "C": [2.0, 4.0, 12.0],
+        },
+        index=["A", "B", "C"],
+    )
+    client.fetch_use_table = MagicMock(return_value=use_matrix)
+
+    # Mock fetch_make_table
+    client.fetch_make_table = MagicMock(return_value=use_matrix.T)
+
+    # Mock pivot_io_data
+    def _pivot_io_data(df: pd.DataFrame) -> pd.DataFrame:
+        return df.pivot_table(
+            values="DataValue",
+            index="RowCode",
+            columns="ColCode",
+            aggfunc="sum",
+            fill_value=0.0,
+        ).sort_index(axis=0).sort_index(axis=1)
+
+    client.pivot_io_data = MagicMock(side_effect=_pivot_io_data)
+
+    # Cache attribute for discovery
+    client._table_id_cache = {}
+
+    return client
