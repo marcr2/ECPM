@@ -6,37 +6,91 @@ schema, and critical sectors analysis.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 import pytest
+
+# Import guards
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    _HAS_SQLALCHEMY = True
+except ImportError:
+    _HAS_SQLALCHEMY = False
+
+try:
+    from ecpm.main import app as fastapi_app
+    from ecpm.database import get_db
+    from ecpm.models import Base
+
+    _HAS_APP = True
+except ImportError:
+    _HAS_APP = False
 
 # Skip if structural API not implemented yet
 pytest.importorskip("ecpm.api.structural")
 
-from unittest.mock import AsyncMock, MagicMock, patch
+pytestmark = pytest.mark.skipif(
+    not _HAS_APP, reason="ecpm.main not yet implemented"
+)
 
-import pytest_asyncio
 
+@pytest.fixture
+def structural_api_client():
+    """Provide a synchronous TestClient backed by in-memory SQLite.
 
-@pytest_asyncio.fixture
-async def structural_api_client():
-    """Provide an httpx.AsyncClient wired to the FastAPI app for structural tests."""
+    Mirrors the pattern from test_api.py: overrides get_db and lifespan
+    to avoid requiring PostgreSQL or Redis during tests.
+    """
     try:
-        from httpx import ASGITransport, AsyncClient
-        from ecpm.main import app
+        from starlette.testclient import TestClient
     except ImportError:
-        pytest.skip("httpx or ecpm.main not available")
+        pytest.skip("starlette not installed")
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+    if not _HAS_SQLALCHEMY:
+        pytest.skip("sqlalchemy not installed")
+
+    test_engine = create_async_engine("sqlite+aiosqlite://", echo=False)
+
+    import asyncio
+
+    async def _setup_db():
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_setup_db())
+
+    test_session_factory = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        async with test_session_factory() as session:
+            yield session
+
+    @asynccontextmanager
+    async def _test_lifespan(app):
+        yield
+
+    original_lifespan = fastapi_app.router.lifespan_context
+    fastapi_app.router.lifespan_context = _test_lifespan
+    fastapi_app.dependency_overrides[get_db] = _override_get_db
+
+    client = TestClient(fastapi_app)
+    yield client
+
+    fastapi_app.dependency_overrides.clear()
+    fastapi_app.router.lifespan_context = original_lifespan
+    asyncio.run(test_engine.dispose())
 
 
 class TestGetYears:
     """Tests for GET /api/structural/years endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_get_years_returns_list(self, structural_api_client):
+    def test_get_years_returns_list(self, structural_api_client):
         """GET /api/structural/years should return a list of available years."""
-        response = await structural_api_client.get("/api/structural/years")
+        response = structural_api_client.get("/api/structural/years")
 
         # Endpoint may return 200 with years or 503 if data not loaded
         if response.status_code == 200:
@@ -44,10 +98,9 @@ class TestGetYears:
             assert "years" in data
             assert isinstance(data["years"], list)
 
-    @pytest.mark.asyncio
-    async def test_get_years_sorted_descending(self, structural_api_client):
+    def test_get_years_sorted_descending(self, structural_api_client):
         """Years should be sorted newest first."""
-        response = await structural_api_client.get("/api/structural/years")
+        response = structural_api_client.get("/api/structural/years")
 
         if response.status_code == 200:
             years = response.json()["years"]
@@ -58,12 +111,11 @@ class TestGetYears:
 class TestGetMatrixCoefficients:
     """Tests for GET /api/structural/matrix/{year} endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_get_matrix_coefficients_returns_matrix(
+    def test_get_matrix_coefficients_returns_matrix(
         self, structural_api_client
     ):
         """GET /api/structural/matrix/{year} should return matrix data."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/matrix/2022", params={"type": "coefficients"}
         )
 
@@ -76,12 +128,11 @@ class TestGetMatrixCoefficients:
             assert "col_labels" in data
             assert "matrix_type" in data
 
-    @pytest.mark.asyncio
-    async def test_get_matrix_coefficients_square_matrix(
+    def test_get_matrix_coefficients_square_matrix(
         self, structural_api_client
     ):
         """Coefficient matrix should be square."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/matrix/2022", params={"type": "coefficients"}
         )
 
@@ -93,12 +144,11 @@ class TestGetMatrixCoefficients:
                 n_cols = len(matrix[0]) if matrix else 0
                 assert n_rows == n_cols
 
-    @pytest.mark.asyncio
-    async def test_get_matrix_inverse_includes_diagnostics(
+    def test_get_matrix_inverse_includes_diagnostics(
         self, structural_api_client
     ):
         """Inverse matrix response should include diagnostics."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/matrix/2022", params={"type": "inverse"}
         )
 
@@ -106,10 +156,9 @@ class TestGetMatrixCoefficients:
             data = response.json()
             assert "diagnostics" in data
 
-    @pytest.mark.asyncio
-    async def test_get_matrix_invalid_year_404(self, structural_api_client):
+    def test_get_matrix_invalid_year_404(self, structural_api_client):
         """Request for invalid year should return 404."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/matrix/1900", params={"type": "coefficients"}
         )
 
@@ -120,8 +169,7 @@ class TestGetMatrixCoefficients:
 class TestShockSimulation:
     """Tests for POST /api/structural/shock endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_shock_simulation_returns_impacts(self, structural_api_client):
+    def test_shock_simulation_returns_impacts(self, structural_api_client):
         """POST /api/structural/shock should return impact data."""
         payload = {
             "year": 2022,
@@ -129,7 +177,7 @@ class TestShockSimulation:
             "shock_type": "demand",
         }
 
-        response = await structural_api_client.post(
+        response = structural_api_client.post(
             "/api/structural/shock", json=payload
         )
 
@@ -141,8 +189,7 @@ class TestShockSimulation:
             assert "total_impact" in data
             assert "shocked_sectors" in data
 
-    @pytest.mark.asyncio
-    async def test_shock_simulation_multi_sector(self, structural_api_client):
+    def test_shock_simulation_multi_sector(self, structural_api_client):
         """Multi-sector shock should include all shocked sectors in response."""
         payload = {
             "year": 2022,
@@ -150,7 +197,7 @@ class TestShockSimulation:
             "shock_type": "demand",
         }
 
-        response = await structural_api_client.post(
+        response = structural_api_client.post(
             "/api/structural/shock", json=payload
         )
 
@@ -158,12 +205,11 @@ class TestShockSimulation:
             data = response.json()
             assert len(data["shocked_sectors"]) >= 2
 
-    @pytest.mark.asyncio
-    async def test_shock_simulation_validation_error(self, structural_api_client):
+    def test_shock_simulation_validation_error(self, structural_api_client):
         """Invalid payload should return 422."""
         payload = {"year": "invalid", "shocks": {}}  # Invalid year type
 
-        response = await structural_api_client.post(
+        response = structural_api_client.post(
             "/api/structural/shock", json=payload
         )
 
@@ -173,10 +219,9 @@ class TestShockSimulation:
 class TestReproductionSchema:
     """Tests for GET /api/structural/reproduction/{year} endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_reproduction_returns_departments(self, structural_api_client):
+    def test_reproduction_returns_departments(self, structural_api_client):
         """GET /api/structural/reproduction/{year} should return department data."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/reproduction/2022"
         )
 
@@ -188,10 +233,9 @@ class TestReproductionSchema:
             assert "flows" in data
             assert "proportionality" in data
 
-    @pytest.mark.asyncio
-    async def test_reproduction_department_structure(self, structural_api_client):
+    def test_reproduction_department_structure(self, structural_api_client):
         """Department data should contain c, v, s values."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/reproduction/2022"
         )
 
@@ -203,10 +247,9 @@ class TestReproductionSchema:
                 assert "v" in dept
                 assert "s" in dept
 
-    @pytest.mark.asyncio
-    async def test_reproduction_includes_sankey_data(self, structural_api_client):
+    def test_reproduction_includes_sankey_data(self, structural_api_client):
         """Response may include Sankey diagram data."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/reproduction/2022"
         )
 
@@ -217,10 +260,9 @@ class TestReproductionSchema:
                 assert "nodes" in data["sankey_data"]
                 assert "links" in data["sankey_data"]
 
-    @pytest.mark.asyncio
-    async def test_reproduction_proportionality_check(self, structural_api_client):
+    def test_reproduction_proportionality_check(self, structural_api_client):
         """Proportionality dict should have reproduction condition flags."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/reproduction/2022"
         )
 
@@ -234,10 +276,9 @@ class TestReproductionSchema:
 class TestCriticalSectors:
     """Tests for GET /api/structural/critical-sectors/{year} endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_critical_sectors_returns_list(self, structural_api_client):
+    def test_critical_sectors_returns_list(self, structural_api_client):
         """GET /api/structural/critical-sectors/{year} should return sector list."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/critical-sectors/2022"
         )
 
@@ -247,10 +288,9 @@ class TestCriticalSectors:
             assert "sectors" in data
             assert isinstance(data["sectors"], list)
 
-    @pytest.mark.asyncio
-    async def test_critical_sectors_structure(self, structural_api_client):
+    def test_critical_sectors_structure(self, structural_api_client):
         """Each sector should have code, linkages, and critical flag."""
-        response = await structural_api_client.get(
+        response = structural_api_client.get(
             "/api/structural/critical-sectors/2022"
         )
 
@@ -263,13 +303,12 @@ class TestCriticalSectors:
                 assert "forward_linkage" in sector
                 assert "critical" in sector
 
-    @pytest.mark.asyncio
-    async def test_critical_sectors_threshold_param(self, structural_api_client):
+    def test_critical_sectors_threshold_param(self, structural_api_client):
         """Threshold parameter should affect critical flag counts."""
-        low_resp = await structural_api_client.get(
+        low_resp = structural_api_client.get(
             "/api/structural/critical-sectors/2022", params={"threshold": 0.01}
         )
-        high_resp = await structural_api_client.get(
+        high_resp = structural_api_client.get(
             "/api/structural/critical-sectors/2022", params={"threshold": 0.5}
         )
 
