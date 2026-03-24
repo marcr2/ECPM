@@ -1,0 +1,208 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { ShockResultResponse } from "@/lib/structural-api";
+
+interface ShockResultsProps {
+  results: ShockResultResponse | null;
+  loading?: boolean;
+}
+
+/**
+ * Shock simulation results visualization.
+ *
+ * Features:
+ * - Bar chart showing impact by industry (sorted by magnitude)
+ * - Top 10 by default with "Show All" toggle
+ * - Color: red for negative, green for positive
+ * - Stats: total impact, weakest link badge
+ */
+export function ShockResults({ results, loading = false }: ShockResultsProps) {
+  const [showAll, setShowAll] = useState(false);
+
+  // Sort impacts by absolute magnitude and prepare chart data
+  const chartData = useMemo(() => {
+    if (!results) return [];
+
+    const sorted = [...results.impacts].sort(
+      (a, b) => Math.abs(b.impact) - Math.abs(a.impact)
+    );
+
+    return showAll ? sorted : sorted.slice(0, 10);
+  }, [results, showAll]);
+
+  // Find weakest link (largest negative impact)
+  const weakestLink = useMemo(() => {
+    if (!results) return null;
+    const negatives = results.impacts.filter((i) => i.impact < 0);
+    if (negatives.length === 0) return null;
+    return negatives.reduce((min, curr) =>
+      curr.impact < min.impact ? curr : min
+    );
+  }, [results]);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Simulation Results</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-[350px] w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!results) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Simulation Results</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex h-[350px] items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              Configure and run a shock simulation to see results.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle>Simulation Results</CardTitle>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Total impact */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                Total Impact:
+              </span>
+              <span
+                className={`text-lg font-bold tabular-nums ${
+                  results.total_impact >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {results.total_impact >= 0 ? "+" : ""}
+                {(results.total_impact * 100).toFixed(2)}%
+              </span>
+            </div>
+
+            {/* Weakest link badge */}
+            {weakestLink && (
+              <Badge variant="destructive" className="text-xs">
+                Weakest: {weakestLink.code} ({(weakestLink.impact * 100).toFixed(1)}%)
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            Showing {chartData.length} of {results.impacts.length} industries
+          </span>
+          {results.impacts.length > 10 && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setShowAll(!showAll)}
+            >
+              {showAll ? "Show Top 10" : "Show All"}
+            </Button>
+          )}
+        </div>
+
+        <ResponsiveContainer width="100%" height={350}>
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+          >
+            <XAxis
+              type="number"
+              domain={["auto", "auto"]}
+              tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
+              stroke="hsl(var(--muted-foreground))"
+              fontSize={11}
+            />
+            <YAxis
+              type="category"
+              dataKey="code"
+              width={70}
+              stroke="hsl(var(--muted-foreground))"
+              fontSize={10}
+              tickLine={false}
+            />
+            <Tooltip
+              cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
+              contentStyle={{
+                backgroundColor: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "0.5rem",
+                color: "hsl(var(--card-foreground))",
+                fontSize: 12,
+              }}
+              content={({ active, payload }) => {
+                if (!active || !payload || !payload[0]) return null;
+                const item = payload[0].payload as { sector: string; code: string; impact: number };
+                return (
+                  <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-lg">
+                    <p className="font-medium">{item.sector || item.code}</p>
+                    <p className="text-muted-foreground">
+                      Impact: {(item.impact * 100).toFixed(2)}%
+                    </p>
+                  </div>
+                );
+              }}
+            />
+            <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" />
+            <Bar dataKey="impact" radius={[0, 4, 4, 0]}>
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.impact >= 0
+                      ? "hsl(var(--chart-2))"
+                      : "hsl(var(--destructive))"
+                  }
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+
+        {/* Shocked sectors info */}
+        <div className="mt-4 border-t border-border pt-3">
+          <span className="text-xs text-muted-foreground">
+            Shocked sectors:{" "}
+            <span className="font-medium text-foreground">
+              {results.shocked_sectors.join(", ")}
+            </span>
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
