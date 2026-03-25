@@ -1,13 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { TopCorrelationItem } from "@/lib/concentration-api";
+import { Fragment, useMemo, useState } from "react";
+import type { IndustryListItem, TopCorrelationItem } from "@/lib/concentration-api";
 import { Slider } from "@/components/ui/slider";
+import {
+  coefficientToColor,
+  ioHeatmapLegendGradientStops,
+} from "@/lib/io-heatmap-colors";
 
 interface CorrelationHeatmapProps {
   correlations: TopCorrelationItem[];
   minConfidence: number;
   onCellClick: (naics: string, indicatorSlug: string) => void;
+  /** Rows in display order (e.g. same sort as industry ranking). Defaults to arbitrary order from data. */
+  rowIndustries?: IndustryListItem[];
 }
 
 // Indicator labels for display
@@ -23,38 +29,54 @@ const INDICATOR_LABELS: Record<string, string> = {
 };
 
 /**
- * 2D heatmap showing correlation between industries and indicators.
- * Color: diverging red-white-blue for correlation (-1 to +1).
+ * 2D heatmap: industry concentration vs national crisis indicators.
+ * Colors match the structural I/O coefficient heatmap (red negative, green positive).
  */
 export function CorrelationHeatmap({
   correlations,
   minConfidence,
   onCellClick,
+  rowIndustries,
 }: CorrelationHeatmapProps) {
   const [confidenceFilter, setConfidenceFilter] = useState(minConfidence);
 
-  // Filter correlations by confidence
-  const filteredCorrelations = useMemo(
-    () => correlations.filter((c) => c.confidence >= confidenceFilter),
-    [correlations, confidenceFilter]
-  );
-
-  // Build unique industries and indicators
-  const industries = useMemo(
-    () => [...new Set(filteredCorrelations.map((c) => c.naics))],
-    [filteredCorrelations]
-  );
-
   const indicators = Object.keys(INDICATOR_LABELS);
 
-  // Build lookup map
+  /** Fixed column widths so header labels line up with every data row. */
+  const gridTemplateColumns = useMemo(
+    () =>
+      `minmax(10rem, 19rem) repeat(${indicators.length}, 3rem)`,
+    [indicators.length],
+  );
+
   const correlationMap = useMemo(() => {
     const map = new Map<string, TopCorrelationItem>();
-    filteredCorrelations.forEach((c) => {
+    correlations.forEach((c) => {
       map.set(`${c.naics}:${c.indicator_slug}`, c);
     });
     return map;
-  }, [filteredCorrelations]);
+  }, [correlations]);
+
+  const displayRows = useMemo((): { naics: string; name: string }[] => {
+    if (rowIndustries?.length) {
+      return rowIndustries.slice(0, 20).map((r) => ({
+        naics: r.naics,
+        name: r.name,
+      }));
+    }
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    for (const c of correlations) {
+      if (!seen.has(c.naics)) {
+        seen.add(c.naics);
+        ordered.push(c.naics);
+      }
+    }
+    return ordered.slice(0, 20).map((naics) => ({
+      naics,
+      name: correlations.find((c) => c.naics === naics)?.industry || naics,
+    }));
+  }, [rowIndustries, correlations]);
 
   if (correlations.length === 0) {
     return (
@@ -87,95 +109,81 @@ export function CorrelationHeatmap({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="inline-block min-w-full">
-          {/* Header row */}
-          <div className="flex">
-            <div className="w-32 shrink-0" />
-            {indicators.map((ind) => (
-              <div
-                key={ind}
-                className="w-12 shrink-0 text-center text-xs font-medium text-muted-foreground"
-                title={ind}
-              >
-                {INDICATOR_LABELS[ind]}
-              </div>
-            ))}
-          </div>
+        <div
+          className="mx-auto grid w-max max-w-full min-w-0 px-1"
+          style={{ gridTemplateColumns }}
+        >
+          <div className="min-h-8 pr-2.5" aria-hidden />
+          {indicators.map((ind) => (
+            <div
+              key={`h-${ind}`}
+              className="flex h-8 min-w-0 items-end justify-center self-end pb-0.5 text-center text-xs font-medium text-muted-foreground"
+              title={ind}
+            >
+              {INDICATOR_LABELS[ind]}
+            </div>
+          ))}
 
-          {/* Data rows */}
-          {industries.slice(0, 15).map((naics) => {
-            const industryCorr = filteredCorrelations.find((c) => c.naics === naics);
-            const industryName = industryCorr?.industry || naics;
+          {displayRows.map((row) => {
+            const naics = row.naics;
+            const industryName = row.name || naics;
 
             return (
-              <div key={naics} className="flex items-center">
+              <Fragment key={naics}>
                 <div
-                  className="w-32 shrink-0 truncate pr-2 text-xs text-foreground"
+                  className="flex min-h-8 min-w-0 items-center truncate pr-2.5 text-left text-xs text-foreground"
                   title={industryName}
                 >
-                  {industryName.length > 15
-                    ? industryName.slice(0, 12) + "..."
-                    : industryName}
+                  {industryName}
                 </div>
                 {indicators.map((ind) => {
                   const corr = correlationMap.get(`${naics}:${ind}`);
+                  const passes =
+                    corr != null && corr.confidence >= confidenceFilter;
                   const value = corr?.correlation ?? 0;
                   const confidence = corr?.confidence ?? 0;
 
                   return (
                     <div
                       key={`${naics}:${ind}`}
-                      className="h-8 w-12 shrink-0 cursor-pointer border border-border/50 transition-colors hover:border-foreground"
-                      style={{ backgroundColor: getCorrelationColor(value) }}
+                      className="h-8 w-full min-w-0 cursor-pointer border border-border/50 transition-colors hover:border-foreground"
+                      style={{
+                        backgroundColor: passes
+                          ? coefficientToColor(value, 1)
+                          : "#252525",
+                      }}
                       onClick={() => onCellClick(naics, ind)}
-                      title={`${industryName} x ${ind}\nCorrelation: ${value.toFixed(2)}\nConfidence: ${confidence.toFixed(0)}%`}
+                      title={`${industryName} × ${ind}\nCorrelation: ${value.toFixed(2)}\nConfidence: ${confidence.toFixed(0)}%\n${passes ? "" : "(below min confidence)"}`}
                     />
                   );
                 })}
-              </div>
+              </Fragment>
             );
           })}
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <span>-1</span>
-        <div
-          className="h-3 w-32"
-          style={{
-            background: "linear-gradient(to right, #ef4444, #ffffff, #3b82f6)",
-          }}
-        />
-        <span>+1</span>
+      {/* Legend — same ramp as I/O table; r is Pearson on aligned annual series */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <span className="w-6 shrink-0 text-right font-medium text-foreground">
+            −1
+          </span>
+          <div
+            className="h-3 w-44 max-w-[min(100%,11rem)] rounded-sm border border-border/60"
+            style={{ background: ioHeatmapLegendGradientStops() }}
+          />
+          <span className="w-6 shrink-0 font-medium text-foreground">+1</span>
+        </div>
+        <p className="mx-auto max-w-xl text-center text-[11px] leading-snug text-muted-foreground">
+          <span className="text-foreground">Pearson correlation (r)</span> between industry
+          concentration (CR4) and each national indicator on overlapping years.{" "}
+          <span className="text-foreground">−1</span>: when one rises, the other tends to fall;{" "}
+          <span className="text-foreground">0</span> (neutral band): little linear co-movement;{" "}
+          <span className="text-foreground">+1</span>: they tend to rise and fall together.
+          Dark cells are below the confidence slider or missing data.
+        </p>
       </div>
     </div>
   );
-}
-
-/**
- * Get diverging color for correlation coefficient.
- * Red (-1) -> White (0) -> Blue (+1)
- */
-function getCorrelationColor(correlation: number): string {
-  // Clamp to [-1, 1]
-  const c = Math.max(-1, Math.min(1, correlation));
-
-  if (c < 0) {
-    // Red gradient
-    const intensity = Math.abs(c);
-    const r = 239;
-    const g = Math.round(68 + (1 - intensity) * (255 - 68));
-    const b = Math.round(68 + (1 - intensity) * (255 - 68));
-    return `rgb(${r}, ${g}, ${b})`;
-  } else if (c > 0) {
-    // Blue gradient
-    const intensity = c;
-    const r = Math.round(255 - intensity * (255 - 59));
-    const g = Math.round(255 - intensity * (255 - 130));
-    const b = 246;
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-
-  return "#ffffff";
 }

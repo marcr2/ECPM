@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   fetchOverview,
@@ -11,7 +11,10 @@ import {
   type TopCorrelationItem,
 } from "@/lib/concentration-api";
 import { ConcentrationOverview } from "@/components/concentration/concentration-overview";
-import { IndustryRankingBars } from "@/components/concentration/industry-ranking-bars";
+import {
+  IndustryRankingBars,
+  sortIndustriesByMetric,
+} from "@/components/concentration/industry-ranking-bars";
 import { CorrelationHeatmap } from "@/components/concentration/correlation-heatmap";
 import { ConcentrationCard } from "@/components/concentration/concentration-card";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -37,7 +40,7 @@ export default function ConcentrationPage() {
       const [overviewData, industriesData, correlationsData] = await Promise.all([
         fetchOverview(),
         fetchIndustries(),
-        fetchTopCorrelations(25),
+        fetchTopCorrelations(0, { fullMatrix: true }),
       ]);
 
       setOverview(overviewData);
@@ -63,6 +66,11 @@ export default function ConcentrationPage() {
     label: ind.name,
     detail: ind.naics,
   }));
+
+  const heatmapRowIndustries = useMemo(
+    () => sortIndustriesByMetric(industries, sortBy).slice(0, 20),
+    [industries, sortBy]
+  );
 
   // Navigation handlers
   const handleIndustrySelect = (naics: string) => {
@@ -157,9 +165,9 @@ export default function ConcentrationPage() {
       </div>
 
       {/* Two-column layout: Ranking + Heatmap */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         {/* Left: Industry ranking bars */}
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-4">
           {loading ? (
             <div className="space-y-2">
               <Skeleton className="h-6 w-40" />
@@ -175,7 +183,7 @@ export default function ConcentrationPage() {
         </div>
 
         {/* Right: Correlation heatmap */}
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="min-w-0 rounded-lg border border-border bg-card p-4">
           {loading ? (
             <div className="space-y-2">
               <Skeleton className="h-6 w-48" />
@@ -185,6 +193,7 @@ export default function ConcentrationPage() {
             <CorrelationHeatmap
               correlations={correlations}
               minConfidence={25}
+              rowIndustries={heatmapRowIndustries}
               onCellClick={handleCellClick}
             />
           )}

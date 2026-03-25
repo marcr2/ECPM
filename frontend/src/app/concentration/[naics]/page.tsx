@@ -207,6 +207,12 @@ export default function IndustryDetailPage({ params }: PageProps) {
                           backgroundColor: "var(--card)",
                           border: "1px solid var(--border)",
                         }}
+                        formatter={(value, name) => [
+                          typeof value === "number" && Number.isFinite(value)
+                            ? value.toFixed(2)
+                            : String(value ?? "—"),
+                          name,
+                        ]}
                       />
                       <Legend />
                       <Line

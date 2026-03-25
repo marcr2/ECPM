@@ -22,6 +22,7 @@ class IndustryListItem(BaseModel):
     hhi: float
     level: str  # "monopoly", "highly_concentrated", "moderately_concentrated", "competitive"
     trend_direction: str  # "increasing", "decreasing", "stable"
+    trend_slope: Optional[float] = None  # CR4 change per year (linear fit); null if no trend row
     data_source: Optional[str] = None  # "edgar", "census", or "estimated"
 
 

@@ -5,12 +5,13 @@ Provides:
 - GET /api/concentration/industry/{naics_code}/history -- Concentration time series
 - GET /api/concentration/industry/{naics_code}/firms/{year} -- Top firms by market share
 - GET /api/concentration/correlations/{naics_code} -- Indicator correlations
-- GET /api/concentration/top-correlations -- Top industry-indicator pairs
+- GET /api/concentration/top-correlations -- Top industry-indicator pairs (or full matrix)
 - GET /api/concentration/overview -- Department-level overview
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Optional
 
 import pandas as pd
@@ -50,6 +51,43 @@ from ecpm.schemas.concentration import (
 )
 
 logger = structlog.get_logger(__name__)
+
+
+def _latest_trend_by_naics(trends: list[ConcentrationTrend]) -> dict[str, ConcentrationTrend]:
+    """Resolve one trend row per NAICS (table has composite PK naics_code + start_year)."""
+    by_naics: dict[str, ConcentrationTrend] = {}
+    for t in trends:
+        prev = by_naics.get(t.naics_code)
+        if prev is None or t.end_year > prev.end_year:
+            by_naics[t.naics_code] = t
+    return by_naics
+
+
+def _cr4_history_by_naics(rows: list[IndustryConcentration]) -> dict[str, list[tuple[int, float]]]:
+    """All (year, cr4) points per NAICS, ascending by year."""
+    hist: dict[str, list[tuple[int, float]]] = defaultdict(list)
+    for row in rows:
+        hist[row.naics_code].append((row.year, row.cr4))
+    for pts in hist.values():
+        pts.sort(key=lambda p: p[0])
+    return hist
+
+
+def _trend_direction_and_slope(
+    naics: str,
+    trend_row: Optional[ConcentrationTrend],
+    cr4_history: dict[str, list[tuple[int, float]]],
+) -> tuple[str, Optional[float]]:
+    """Prefer persisted trend; otherwise linear fit on CR4 history (same as ingestion)."""
+    if trend_row is not None:
+        return trend_row.trend_direction, trend_row.trend_slope
+    pts = cr4_history.get(naics, [])
+    if len(pts) < 2:
+        return "stable", None
+    years = pd.Series([p[0] for p in pts])
+    cr4s = pd.Series([p[1] for p in pts])
+    tr = compute_trend(cr4s, years)
+    return tr["direction"], tr["slope"]
 
 router = APIRouter(prefix="/api/concentration", tags=["concentration"])
 
@@ -112,10 +150,19 @@ async def _load_indicator_annual_series(
                 indicator_data[hyphenated] = pd.Series(dtype=float)
                 continue
 
-            # Resample to annual average
-            annual = series.resample("YE").mean().dropna()
-            # Re-index to year start dates for alignment with concentration data
-            annual.index = pd.to_datetime(annual.index.year.astype(str), format="%Y")
+            s = series.dropna()
+            if not isinstance(s.index, pd.DatetimeIndex):
+                s = s.copy()
+                s.index = pd.to_datetime(s.index, errors="coerce")
+                s = s[s.index.notna()]
+            if s.empty:
+                indicator_data[hyphenated] = pd.Series(dtype=float)
+                continue
+            s = s.sort_index()
+            # Calendar-year mean (matches integer ``year`` on concentration rows;
+            # resample("YE") labels can mis-align with census / fiscal years).
+            annual = s.groupby(s.index.year, sort=True).mean()
+            annual.index = pd.to_datetime(annual.index.astype(str), format="%Y")
             indicator_data[hyphenated] = annual
         except Exception:
             logger.warning(
@@ -143,7 +190,8 @@ async def get_industries(
     Optionally filter by Marxist department classification.
     """
     redis = _get_redis()
-    cache_key = build_cache_key("concentration/industries", {"dept": department})
+    # v2: includes trend_slope + avoids stale cache missing that field
+    cache_key = build_cache_key("concentration/industries/v2", {"dept": department})
 
     # Try cache first
     cached = await cache_get(cache_key, redis=redis)
@@ -158,7 +206,7 @@ async def get_industries(
         IndustryConcentration.year.desc(),
     )
     result = await db.execute(stmt)
-    rows = result.scalars().all()
+    rows = list(result.scalars().all())
 
     if not rows:
         # Return placeholder data if no data in DB
@@ -171,17 +219,19 @@ async def get_industries(
         if row.naics_code not in latest_by_industry:
             latest_by_industry[row.naics_code] = row
 
-    # Get trend data
+    cr4_history = _cr4_history_by_naics(rows)
+
     trends_stmt = select(ConcentrationTrend)
     trends_result = await db.execute(trends_stmt)
-    trends = {t.naics_code: t for t in trends_result.scalars().all()}
+    trends_by_naics = _latest_trend_by_naics(list(trends_result.scalars().all()))
 
     # Build response
     industries = []
     for naics, conc in latest_by_industry.items():
         level = classify_concentration_level(conc.cr4, conc.hhi)
-        trend = trends.get(naics)
-        trend_direction = trend.trend_direction if trend else "stable"
+        trend_direction, trend_slope = _trend_direction_and_slope(
+            naics, trends_by_naics.get(naics), cr4_history
+        )
 
         # Filter by department if specified
         if department:
@@ -201,6 +251,7 @@ async def get_industries(
             hhi=conc.hhi,
             level=level,
             trend_direction=trend_direction,
+            trend_slope=trend_slope,
             data_source=getattr(conc, "data_source", None),
         ))
 
@@ -429,13 +480,20 @@ async def get_top_correlations(
         25,
         description="Minimum confidence threshold (annual panels use a short-series score)",
     ),
+    full_matrix: bool = Query(
+        False,
+        description=(
+            "If true, return all industry×indicator pairs meeting min_confidence "
+            "(for overview heatmaps). If false, return only the top 20 pairs by confidence."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> TopCorrelationsResponse:
-    """Get top 20 industry-indicator correlations by confidence."""
+    """Get top industry-indicator correlations, or the full matrix for heatmaps."""
     redis = _get_redis()
     cache_key = build_cache_key(
         "concentration/top-correlations",
-        {"min_conf": min_confidence},
+        {"min_conf": min_confidence, "full": full_matrix},
     )
 
     # Try cache first
@@ -480,7 +538,7 @@ async def get_top_correlations(
         concentration_data=all_df,
         indicator_data=indicator_data,
         min_confidence=min_confidence,
-        top_n=20,
+        top_n=None if full_matrix else 20,
     )
 
     top_items = []
@@ -513,7 +571,7 @@ async def get_overview(
 ) -> OverviewResponse:
     """Get concentration overview with department-level aggregations."""
     redis = _get_redis()
-    cache_key = build_cache_key("concentration/overview", {})
+    cache_key = build_cache_key("concentration/overview/v2", {})
 
     # Try cache first
     cached = await cache_get(cache_key, redis=redis)
@@ -527,7 +585,7 @@ async def get_overview(
         IndustryConcentration.year.desc(),
     )
     result = await db.execute(stmt)
-    rows = result.scalars().all()
+    rows = list(result.scalars().all())
 
     if not rows:
         # Return placeholder
@@ -545,6 +603,8 @@ async def get_overview(
         if row.naics_code not in latest_by_industry:
             latest_by_industry[row.naics_code] = row
 
+    cr4_history = _cr4_history_by_naics(rows)
+
     # Build DataFrame for aggregation
     df = pd.DataFrame([
         {
@@ -559,10 +619,9 @@ async def get_overview(
     # Aggregate by department
     dept_agg = aggregate_by_department(df)
 
-    # Get trends for departments
     trends_stmt = select(ConcentrationTrend)
     trends_result = await db.execute(trends_stmt)
-    trends = {t.naics_code: t for t in trends_result.scalars().all()}
+    trends_by_naics = _latest_trend_by_naics(list(trends_result.scalars().all()))
 
     # Compute department trend directions (simplified - would aggregate trends)
     dept_i_trend = "stable"
@@ -572,8 +631,9 @@ async def get_overview(
     industries_with_info: list[IndustryListItem] = []
     for naics, conc in latest_by_industry.items():
         level = classify_concentration_level(conc.cr4, conc.hhi)
-        trend = trends.get(naics)
-        trend_direction = trend.trend_direction if trend else "stable"
+        trend_direction, trend_slope = _trend_direction_and_slope(
+            naics, trends_by_naics.get(naics), cr4_history
+        )
 
         industries_with_info.append(IndustryListItem(
             naics=naics,
@@ -582,6 +642,7 @@ async def get_overview(
             hhi=conc.hhi,
             level=level,
             trend_direction=trend_direction,
+            trend_slope=trend_slope,
             data_source=getattr(conc, "data_source", None),
         ))
 

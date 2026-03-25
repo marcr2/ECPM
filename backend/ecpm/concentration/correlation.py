@@ -140,6 +140,31 @@ def compute_lead_lag_correlation(
     }
 
 
+def _pearson_r(x: np.ndarray, y: np.ndarray) -> float:
+    """Pearson r; NaN if too few points or either series is (near) constant."""
+    a = np.asarray(x, dtype=float)
+    b = np.asarray(y, dtype=float)
+    if a.shape != b.shape or a.size < 2:
+        return float("nan")
+    if np.nanstd(a) < 1e-12 or np.nanstd(b) < 1e-12:
+        return float("nan")
+    r = np.corrcoef(a, b)[0, 1]
+    return float(r)
+
+
+def _choose_concentration_column(conc_df: pd.DataFrame) -> str:
+    """Prefer CR4; use HHI when CR4 is flat (corr would be undefined)."""
+    for col in ("cr4", "hhi"):
+        if col not in conc_df.columns:
+            continue
+        s = pd.to_numeric(conc_df[col], errors="coerce").dropna()
+        if len(s) < 2:
+            continue
+        if float(s.std()) > 1e-9:
+            return col
+    return "cr4" if "cr4" in conc_df.columns else "hhi"
+
+
 def _indicator_values_by_calendar_year(ind_series: pd.Series) -> dict[int, float]:
     """Map calendar year -> last observed annual indicator value for that year."""
     out: dict[int, float] = {}
@@ -172,7 +197,7 @@ def _merge_concentration_with_indicator(
 def _annual_observation_lag_correlation(
     merged: pd.DataFrame,
     max_lag_obs: int = 3,
-    min_obs: int = 4,
+    min_obs: int = 3,
 ) -> tuple[float, int, int]:
     """Lead/lag correlation on aligned annual panels (lags = observation shifts).
 
@@ -200,7 +225,7 @@ def _annual_observation_lag_correlation(
         n = len(c_seg)
         if n < min_obs:
             continue
-        r = float(c_seg.corr(i_seg))
+        r = _pearson_r(c_seg.values, i_seg.values)
         if np.isnan(r):
             continue
         if abs(r) > abs(best_r):
@@ -216,7 +241,7 @@ def _concentration_panel_confidence(correlation: float, n_observations: int) -> 
 
     Scales with |r| and sample size without requiring n >= 10 like monthly logic.
     """
-    if n_observations < 4 or np.isnan(correlation):
+    if n_observations < 3 or np.isnan(correlation):
         return 0.0
     return float(
         min(100.0, abs(correlation) * 100.0 * min(1.0, n_observations / 5.0))
@@ -314,8 +339,7 @@ def map_concentration_to_indicators(
     if conc_df.empty:
         return results
 
-    # Use CR4 as default concentration metric
-    conc_col = "cr4" if "cr4" in conc_df.columns else "hhi"
+    conc_col = _choose_concentration_column(conc_df)
 
     for slug in indicator_slugs:
         ind_series = indicator_data.get(slug, pd.Series(dtype=float))
@@ -364,7 +388,7 @@ def find_strongest_correlations(
     concentration_data: pd.DataFrame,
     indicator_data: dict[str, pd.Series],
     min_confidence: float = 50,
-    top_n: int = 20,
+    top_n: int | None = 20,
 ) -> pd.DataFrame:
     """Find strongest concentration-indicator correlations across all industries.
 
@@ -375,7 +399,8 @@ def find_strongest_correlations(
         concentration_data: DataFrame with naics_code, year, cr4, hhi columns.
         indicator_data: Dict mapping indicator slug to time series.
         min_confidence: Minimum confidence threshold.
-        top_n: Number of top correlations to return.
+        top_n: Max rows to return, sorted by confidence. ``None`` returns every
+            pair that meets ``min_confidence`` (for full heatmaps).
 
     Returns:
         DataFrame with columns:
@@ -429,8 +454,12 @@ def find_strongest_correlations(
                     "lag_months": corr["lag_months"],
                 })
 
-    # Sort by confidence and take top N
-    results.sort(key=lambda x: x["confidence"], reverse=True)
-    results = results[:top_n]
+    if top_n is not None:
+        results.sort(key=lambda x: x["confidence"], reverse=True)
+        results = results[:top_n]
+    else:
+        results.sort(
+            key=lambda x: (str(x["naics_code"]), str(x["indicator_slug"])),
+        )
 
     return pd.DataFrame(results)

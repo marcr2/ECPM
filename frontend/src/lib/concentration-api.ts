@@ -19,6 +19,8 @@ export interface IndustryListItem {
   hhi: number;
   level: "monopoly" | "highly_concentrated" | "moderately_concentrated" | "competitive";
   trend_direction: "increasing" | "decreasing" | "stable";
+  /** CR4 change per year (linear fit); absent when no trend row. */
+  trend_slope?: number | null;
   data_source?: DataSource | null;
 }
 
@@ -105,7 +107,7 @@ export interface OverviewResponse {
 
 async function apiFetch<T>(
   path: string,
-  params?: Record<string, string | number | undefined>,
+  params?: Record<string, string | number | boolean | undefined>,
   options?: RequestInit
 ): Promise<T> {
   const url = new URL(path, API_BASE);
@@ -193,14 +195,19 @@ export async function fetchCorrelations(
 
 /**
  * Fetch top industry-indicator correlations by confidence.
- * @param minConfidence - Minimum confidence threshold (default 50)
+ * @param minConfidence - Minimum confidence threshold (server-side filter)
+ * @param options.fullMatrix - If true, all industry×indicator pairs are returned (for heatmaps)
  */
 export async function fetchTopCorrelations(
-  minConfidence?: number
+  minConfidence?: number,
+  options?: { fullMatrix?: boolean }
 ): Promise<TopCorrelationsResponse> {
   return apiFetch<TopCorrelationsResponse>(
     "/api/concentration/top-correlations",
-    { min_confidence: minConfidence }
+    {
+      min_confidence: minConfidence,
+      full_matrix: options?.fullMatrix ? true : undefined,
+    }
   );
 }
 
