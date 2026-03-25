@@ -5,8 +5,7 @@
  * Follows the pattern established in structural-api.ts with apiFetch helper.
  */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getPublicApiBase } from "@/lib/public-api-base";
 
 // ---------- Types (mirror backend Pydantic schemas) ----------
 
@@ -110,7 +109,7 @@ async function apiFetch<T>(
   params?: Record<string, string | number | boolean | undefined>,
   options?: RequestInit
 ): Promise<T> {
-  const url = new URL(path, API_BASE);
+  const url = new URL(path, getPublicApiBase());
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== "") {

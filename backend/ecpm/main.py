@@ -27,6 +27,14 @@ logger = structlog.get_logger(__name__)
 _redis_pool: Optional[object] = None
 
 
+def _cors_allow_origins() -> list[str]:
+    settings = get_settings()
+    raw = settings.cors_origins.strip()
+    if not raw:
+        return ["http://localhost:3000"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: setup logging, verify DB, initialize Redis."""
@@ -34,6 +42,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     setup_logging()
     logger.info("ecpm.startup", version="0.1.0")
+
+    settings = get_settings()
+    if settings.environment == "production" and not settings.jwt_secret_key.strip():
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be set when ENVIRONMENT=production "
+            "(auth and training flows require a strong signing secret)."
+        )
+    if settings.environment == "production" and not settings.admin_password_hash.strip():
+        logger.warning(
+            "ecpm.prod_admin_hash_missing",
+            msg="ADMIN_PASSWORD_HASH is empty; set it (see scripts/create_admin.py) before using admin login.",
+        )
 
     # Test database connection
     try:
@@ -44,7 +64,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("ecpm.db_unavailable", exc_info=True)
 
     # Initialize Redis connection pool
-    settings = get_settings()
     try:
         import redis.asyncio as aioredis
 
@@ -94,7 +113,7 @@ def _create_app() -> FastAPI:
 
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=_cors_allow_origins(),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept"],

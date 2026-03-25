@@ -1,0 +1,20 @@
+# Public hostname or :80 for local HTTP-only. Set CADDY_DOMAIN in .env (e.g. ecpm.example.com).
+# Caddy obtains Let's Encrypt certificates automatically for public DNS names.
+{$CADDY_DOMAIN:localhost} {
+	encode gzip zstd
+
+	# API + health (SSE-friendly flush)
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle /health {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

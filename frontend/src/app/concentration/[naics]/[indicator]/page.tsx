@@ -11,6 +11,7 @@ import {
 import { IndustryIndicatorChart } from "@/components/concentration/industry-indicator-chart";
 import { ConfidenceBreakdown } from "@/components/concentration/confidence-breakdown";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPublicApiBase } from "@/lib/public-api-base";
 
 // Indicator name mapping
 const INDICATOR_NAMES: Record<string, string> = {
@@ -69,7 +70,7 @@ export default function IndustryIndicatorPage({ params }: PageProps) {
 
       // Fetch real indicator time series from the indicators API
       const apiSlug = indicator.replace(/-/g, "_");
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const apiBase = getPublicApiBase();
       try {
         const indRes = await fetch(
           `${apiBase}/api/indicators/${apiSlug}?methodology=shaikh-tonak`,

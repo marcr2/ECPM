@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { getPublicApiBase } from "@/lib/public-api-base";
 
 const pageTitles: Record<string, string> = {
   "/data": "Data Overview",
@@ -24,7 +25,7 @@ export function Header() {
     const checkHealth = async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/health`,
+          `${getPublicApiBase()}/health`,
           { signal: AbortSignal.timeout(3000) }
         );
         setBackendStatus(res.ok ? "connected" : "disconnected");

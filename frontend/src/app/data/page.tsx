@@ -7,8 +7,7 @@ import { SeriesTable } from "@/components/data/series-table";
 import { FetchStatusCard } from "@/components/data/fetch-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getPublicApiBase } from "@/lib/public-api-base";
 
 interface IOStatus {
   years_loaded: number[];
@@ -59,10 +58,10 @@ export default function DataOverviewPage() {
   const loadExtendedStatus = useCallback(async () => {
     try {
       const [ioRes, concRes] = await Promise.all([
-        fetch(`${API_BASE}/api/data/io-status`).then((r) =>
+        fetch(`${getPublicApiBase()}/api/data/io-status`).then((r) =>
           r.ok ? r.json() : null
         ),
-        fetch(`${API_BASE}/api/data/concentration-status`).then((r) =>
+        fetch(`${getPublicApiBase()}/api/data/concentration-status`).then((r) =>
           r.ok ? r.json() : null
         ),
       ]);

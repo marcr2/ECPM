@@ -251,9 +251,8 @@ This guide covers production deployment on Linux systems (Ubuntu 22.04/24.04, De
 - Linux kernel 5.0+ (6.x recommended)
 - 4GB RAM minimum (8GB+ recommended for large I-O computations)
 - 20GB disk space (50GB+ recommended with data retention)
-- Docker Engine 24.0+ and Docker Compose V2
-- Nginx (for reverse proxy)
-- certbot (for SSL/TLS)
+- Docker Engine 24.0+ and Docker Compose V2 (Compose file v2.20+ for one-shot migrations)
+- Optional: host-level Nginx or Traefik if you prefer not to use the bundled Caddy service
 
 **Install Docker (Ubuntu/Debian):**
 
@@ -296,334 +295,51 @@ sudo systemctl enable --now docker.service
 sudo usermod -aG docker $USER
 ```
 
-### Production Configuration
+### Production stack (checked-in Compose + Caddy)
 
-**1. Clone and configure environment:**
+The repository includes [docker-compose.prod.yml](docker-compose.prod.yml): TimescaleDB, password-protected Redis, a **one-shot `migrate` service** (Alembic, `service_completed_successfully`), FastAPI with **multiple Uvicorn workers**, Celery worker/beat, **Next.js standalone** (`node server.js`), and **Caddy** on ports 80/443 routing `/api/*` and `/health` to the backend and everything else to the frontend (same-origin for the browser; CSP/CORS stay simple).
+
+**Quick start** (from the repository root; clone first if you do not have the tree yet):
 
 ```bash
-# Clone repository
+cp .env.example .env   # set ENVIRONMENT=production, secrets, CADDY_DOMAIN, CORS_ORIGINS, etc.
+docker compose -f docker-compose.prod.yml up -d --build
+export TRAINING_TOKEN=...   # from .env
+./scripts/first-time-deploy.sh --skip-up   # add --fetch-io / --fetch-concentration if needed
+```
+
+The script’s default `API_BASE` is `http://127.0.0.1` (Caddy on port 80). If you terminate TLS elsewhere, set e.g. `API_BASE=https://ecpm.example.com` for that run. Optional compose override: `--env-file .env.production`.
+
+**1. Clone and configure `.env` (do not commit secrets):**
+
+```bash
 git clone https://github.com/yourusername/ECPM.git /opt/ecpm
 cd /opt/ecpm
-
-# Create production environment file
-cp .env.example .env.production
-
-# Edit with secure credentials
-nano .env.production
+cp .env.example .env
+nano .env   # or use .env.production and pass --env-file below
 ```
 
-**2. Secure production `.env.production`:**
+**2. Production-oriented variables (see [.env.example](.env.example) for the full template):**
 
-```bash
-# Database credentials (use strong passwords)
-POSTGRES_DB=ecpm
-POSTGRES_USER=ecpm
-POSTGRES_PASSWORD=<STRONG_PASSWORD_HERE>
-DATABASE_URL=postgresql+asyncpg://ecpm:<STRONG_PASSWORD_HERE>@timescaledb:5432/ecpm
+| Variable | Notes |
+|----------|--------|
+| `ENVIRONMENT` | Set to `production` to disable `/docs` and `/openapi.json` and enforce a non-empty `JWT_SECRET_KEY` at startup. |
+| `POSTGRES_*`, `REDIS_PASSWORD` | Required; compose fails fast if DB/Redis passwords are missing. |
+| `JWT_SECRET_KEY` | Required when `ENVIRONMENT=production` (empty secret aborts startup). |
+| `ADMIN_PASSWORD_HASH` | Required for admin login; generate with `python scripts/create_admin.py`. |
+| `TRAINING_TOKEN` | Long random secret for `Authorization: Bearer …` on training/fetch triggers (optional; if unset, only JWT works). |
+| `CORS_ORIGINS` | Comma-separated list, e.g. `https://ecpm.example.com`. Defaults to `http://localhost:3000` if unset. |
+| `CSP_CONNECT_SRC_EXTRA` | Optional extra CSP `connect-src` tokens for split-origin APIs (space- or comma-separated). |
+| `CADDY_DOMAIN` | Public hostname (e.g. `ecpm.example.com`); Caddy requests Let’s Encrypt certificates. For quick local HTTP tests use `CADDY_DOMAIN=:80`. |
+| `NEXT_PUBLIC_API_URL` | Build-time: leave empty for same-origin (browser uses the page origin). Set to an absolute API URL only if the UI calls a different host. |
+| `UVICORN_WORKERS` | Override worker count (default `4` in compose). |
+| `FRED_API_KEY`, `BEA_API_KEY`, `CENSUS_API_KEY`, `EDGAR_USER_AGENT` | Data ingestion and SEC fair-access policy. |
 
-# Redis (consider password protection in production)
-REDIS_URL=redis://redis:6379/0
+**3. After `.env` is ready:** use the **Quick start** commands above (omit `docker-compose.override.yml` for production). For [scripts/first-time-deploy.sh](scripts/first-time-deploy.sh), Celery must already be running (it will be if Compose is up). Extra flags: `--dry-run`, `--skip-fetch`, `--skip-train`, `--fetch-io`, `--fetch-concentration`.
 
-# API keys (never commit these)
-FRED_API_KEY=<YOUR_FRED_API_KEY>
-BEA_API_KEY=<YOUR_BEA_API_KEY>
-CENSUS_API_KEY=<YOUR_CENSUS_API_KEY>
+**4. Security notes (summary):** Containers use `no-new-privileges`, dropped capabilities, and read-only root where practical; rate limits use Redis when `REDIS_PASSWORD` is set; training and manual fetch endpoints require JWT or `TRAINING_TOKEN`. Most read routes are public by design—use network controls if the dashboard must not be on the open internet. A fuller audit narrative lives in the deployment plan doc used for this work.
 
-# Celery configuration
-CELERY_BROKER_URL=redis://redis:6379/0
-CELERY_RESULT_BACKEND=redis://redis:6379/1
-
-# Schedule (UTC time, adjust for your timezone)
-FETCH_SCHEDULE_HOUR=11  # 6 AM US/Eastern = 11 AM UTC
-FETCH_SCHEDULE_MINUTE=0
-
-# Logging
-LOG_LEVEL=INFO
-```
-
-**3. Create production `docker-compose.prod.yml`:**
-
-```bash
-cat > docker-compose.prod.yml << 'EOF'
-services:
-  timescaledb:
-    image: timescale/timescaledb:latest-pg16
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - timescaledb_data:/var/lib/postgresql/data
-      - ./config/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./backups:/backups
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ecpm_network
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    networks:
-      - ecpm_network
-
-  backend:
-    build:
-      context: ./backend
-    restart: unless-stopped
-    command: uvicorn ecpm.main:app --host 0.0.0.0 --port 8000 --workers 4
-    env_file:
-      - .env.production
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - ecpm_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  celery_worker:
-    build:
-      context: ./backend
-    restart: unless-stopped
-    command: celery -A ecpm.tasks.celery_app worker --loglevel=info --concurrency=4
-    env_file:
-      - .env.production
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - ecpm_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  celery_beat:
-    build:
-      context: ./backend
-    restart: unless-stopped
-    command: celery -A ecpm.tasks.celery_app beat --loglevel=info
-    env_file:
-      - .env.production
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - ecpm_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        - NODE_ENV=production
-    restart: unless-stopped
-    command: npm start
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://backend:8000
-    depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - ecpm_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-networks:
-  ecpm_network:
-    driver: bridge
-
-volumes:
-  timescaledb_data:
-  redis_data:
-EOF
-```
-
-**4. Start production services:**
-
-```bash
-# Build and start all services
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d
-
-# View logs
-docker compose -f docker-compose.prod.yml logs -f
-
-# Check service health
-docker compose -f docker-compose.prod.yml ps
-```
-
-### Nginx Reverse Proxy
-
-**1. Install Nginx:**
-
-```bash
-# Ubuntu/Debian
-sudo apt install nginx
-
-# Fedora/RHEL
-sudo dnf install nginx
-
-# Arch Linux
-sudo pacman -S nginx
-```
-
-**2. Configure Nginx site:**
-
-```bash
-sudo nano /etc/nginx/sites-available/ecpm
-```
-
-```nginx
-# /etc/nginx/sites-available/ecpm
-
-upstream backend_api {
-    server 127.0.0.1:8000;
-}
-
-upstream frontend_app {
-    server 127.0.0.1:3000;
-}
-
-server {
-    listen 80;
-    server_name ecpm.yourdomain.com;
-
-    # Redirect HTTP to HTTPS
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name ecpm.yourdomain.com;
-
-    # SSL certificates (managed by certbot)
-    ssl_certificate /etc/letsencrypt/live/ecpm.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ecpm.yourdomain.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-
-    # API endpoints
-    location /api/ {
-        proxy_pass http://backend_api;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 300s;
-    }
-
-    # API docs
-    location /docs {
-        proxy_pass http://backend_api;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location /openapi.json {
-        proxy_pass http://backend_api;
-        proxy_set_header Host $host;
-    }
-
-    # Health check
-    location /health {
-        proxy_pass http://backend_api;
-        access_log off;
-    }
-
-    # Frontend application
-    location / {
-        proxy_pass http://frontend_app;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Next.js static files
-    location /_next/static/ {
-        proxy_pass http://frontend_app;
-        proxy_cache_valid 200 365d;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # Client-side max body size for file uploads
-    client_max_body_size 10M;
-}
-```
-
-**3. Enable site and obtain SSL certificate:**
-
-```bash
-# Enable site
-sudo ln -s /etc/nginx/sites-available/ecpm /etc/nginx/sites-enabled/
-
-# Test configuration
-sudo nginx -t
-
-# Install certbot
-sudo apt install certbot python3-certbot-nginx  # Ubuntu/Debian
-# OR
-sudo dnf install certbot python3-certbot-nginx  # Fedora
-
-# Obtain SSL certificate
-sudo certbot --nginx -d ecpm.yourdomain.com
-
-# Reload Nginx
-sudo systemctl reload nginx
-```
+**5. Optional host Nginx:** If you already terminate TLS on Nginx, proxy `/api/` and `/health` to `127.0.0.1:8000` only if you publish the backend; with the default prod file, proxy to the Caddy container or re-use the same path layout as [config/caddy/Caddyfile](config/caddy/Caddyfile).
 
 ### Systemd Service (Alternative to Docker Compose)
 
@@ -643,8 +359,8 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/ecpm
-ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml --env-file .env.production up -d
-ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml --env-file .env.production down
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml down
 User=ecpm
 Group=docker
 
@@ -969,7 +685,7 @@ docker exec -it ecpm-redis-1 redis-cli
 │   └── phases/                       # Phase-specific plans
 ├── docker-compose.yml                # Base service definitions
 ├── docker-compose.override.yml       # Development overrides
-├── docker-compose.prod.yml           # Production configuration (create this)
+├── docker-compose.prod.yml           # Production: Caddy, migrate job, multi-worker API
 ├── .env.example                      # Environment template
 ├── .env.production                   # Production secrets (DO NOT COMMIT)
 ├── CHANGELOG.md                      # Release notes

@@ -1,5 +1,4 @@
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getPublicApiBase } from "@/lib/public-api-base";
 
 // ---------- Types ----------
 
@@ -72,7 +71,7 @@ async function apiFetch<T>(
   path: string,
   params?: Record<string, string | undefined>
 ): Promise<T> {
-  const url = new URL(path, API_BASE);
+  const url = new URL(path, getPublicApiBase());
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== "") {
@@ -113,7 +112,7 @@ export async function fetchStatus(): Promise<FetchStatus> {
 }
 
 export async function triggerFetch(): Promise<FetchTriggerResponse> {
-  const res = await fetch(`${API_BASE}/api/data/fetch`, {
+  const res = await fetch(`${getPublicApiBase()}/api/data/fetch`, {
     method: "POST",
     headers: { Accept: "application/json" },
   });

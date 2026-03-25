@@ -53,11 +53,16 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
   const episode = backtests[selectedEpisode];
 
   // Calculate warning dates (12 and 24 months before peak)
-  const peakDate = new Date(episode.peak_date);
-  const warning12Date = new Date(peakDate);
-  warning12Date.setMonth(warning12Date.getMonth() - 12);
-  const warning24Date = new Date(peakDate);
-  warning24Date.setMonth(warning24Date.getMonth() - 24);
+  const peakDate =
+    episode.peak_date != null ? new Date(episode.peak_date) : null;
+  let warning12Date: Date | null = null;
+  let warning24Date: Date | null = null;
+  if (peakDate) {
+    warning12Date = new Date(peakDate);
+    warning12Date.setMonth(warning12Date.getMonth() - 12);
+    warning24Date = new Date(peakDate);
+    warning24Date.setMonth(warning24Date.getMonth() - 24);
+  }
 
   // Format dates for display
   const formatDate = (d: Date) => d.toISOString().slice(0, 10);
@@ -178,41 +183,47 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
             />
 
             {/* Warning markers */}
-            <ReferenceLine
-              x={formatDate(warning24Date)}
-              stroke="var(--chart-2)"
-              strokeDasharray="5 3"
-              label={{
-                value: "-24mo",
-                position: "top",
-                fill: "var(--muted-foreground)",
-                fontSize: 10,
-              }}
-            />
-            <ReferenceLine
-              x={formatDate(warning12Date)}
-              stroke="var(--chart-3)"
-              strokeDasharray="5 3"
-              label={{
-                value: "-12mo",
-                position: "top",
-                fill: "var(--muted-foreground)",
-                fontSize: 10,
-              }}
-            />
+            {warning24Date && (
+              <ReferenceLine
+                x={formatDate(warning24Date)}
+                stroke="var(--chart-2)"
+                strokeDasharray="5 3"
+                label={{
+                  value: "-24mo",
+                  position: "top",
+                  fill: "var(--muted-foreground)",
+                  fontSize: 10,
+                }}
+              />
+            )}
+            {warning12Date && (
+              <ReferenceLine
+                x={formatDate(warning12Date)}
+                stroke="var(--chart-3)"
+                strokeDasharray="5 3"
+                label={{
+                  value: "-12mo",
+                  position: "top",
+                  fill: "var(--muted-foreground)",
+                  fontSize: 10,
+                }}
+              />
+            )}
 
             {/* Peak marker */}
-            <ReferenceLine
-              x={episode.peak_date}
-              stroke="var(--destructive)"
-              strokeWidth={2}
-              label={{
-                value: "Peak",
-                position: "top",
-                fill: "var(--destructive)",
-                fontSize: 10,
-              }}
-            />
+            {episode.peak_date && (
+              <ReferenceLine
+                x={episode.peak_date}
+                stroke="var(--destructive)"
+                strokeWidth={2}
+                label={{
+                  value: "Peak",
+                  position: "top",
+                  fill: "var(--destructive)",
+                  fontSize: 10,
+                }}
+              />
+            )}
 
             {/* Crisis index line */}
             <Line

@@ -102,6 +102,7 @@ tests/test_api_structural.py
 tests/test_backtest.py
 tests/test_bea_client.py
 tests/test_cache.py
+tests/test_concentration_correlation.py
 tests/test_crisis_index.py
 tests/test_fred_client.py
 tests/test_indicators.py

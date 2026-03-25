@@ -24,13 +24,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = (
             "camera=(), microphone=(), geolocation=(), payment=()"
         )
+        connect_parts = ["'self'"]
+        extra = settings.csp_connect_src_extra.replace(",", " ").split()
+        for token in extra:
+            if token:
+                connect_parts.append(token)
+        connect_src = " ".join(connect_parts)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
             "font-src 'self'; "
-            "connect-src 'self'"
+            f"connect-src {connect_src}"
         )
 
         if is_prod:

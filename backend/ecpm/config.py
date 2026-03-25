@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # Comma-separated browser origins for CORS (e.g. https://app.example.com).
+    # Empty: default allows http://localhost:3000 only.
+    cors_origins: str = ""
+
+    # Optional extra CSP connect-src tokens (space- or comma-separated URLs), for
+    # split-origin API hosts. Same-origin reverse proxy needs no extra values.
+    csp_connect_src_extra: str = ""
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:

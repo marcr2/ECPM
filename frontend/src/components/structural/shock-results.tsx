@@ -36,11 +36,14 @@ interface ShockResultsProps {
 export function ShockResults({ results, loading = false, error }: ShockResultsProps) {
   const [showAll, setShowAll] = useState(false);
 
-  // Sort impacts by absolute magnitude and prepare chart data
+  // Sort impacts by absolute magnitude and prepare chart data,
+  // excluding the shocked (target) sectors themselves.
   const chartData = useMemo(() => {
     if (!results) return [];
 
-    const sorted = [...results.impacts].sort(
+    const shockedSet = new Set(results.shocked_sectors);
+    const filtered = results.impacts.filter((i) => !shockedSet.has(i.code));
+    const sorted = filtered.sort(
       (a, b) => Math.abs(b.impact) - Math.abs(a.impact)
     );
 
@@ -138,9 +141,9 @@ export function ShockResults({ results, loading = false, error }: ShockResultsPr
       <CardContent>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs text-muted-foreground">
-            Showing {chartData.length} of {results.impacts.length} industries
+            Showing {chartData.length} of {results.impacts.length - results.shocked_sectors.length} industries
           </span>
-          {results.impacts.length > 10 && (
+          {results.impacts.length - results.shocked_sectors.length > 10 && (
             <Button
               variant="ghost"
               size="xs"

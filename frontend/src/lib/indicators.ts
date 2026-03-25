@@ -5,8 +5,7 @@
  * All functions call /api/indicators/... endpoints served by the backend.
  */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getPublicApiBase } from "@/lib/public-api-base";
 
 // ---------- Types ----------
 
@@ -71,7 +70,7 @@ async function indicatorFetch<T>(
   path: string,
   params?: Record<string, string | undefined>
 ): Promise<T> {
-  const url = new URL(path, API_BASE);
+  const url = new URL(path, getPublicApiBase());
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== "") {

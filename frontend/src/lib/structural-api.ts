@@ -5,8 +5,7 @@
  * Follows the pattern established in forecast-api.ts with apiFetch helper.
  */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getPublicApiBase } from "@/lib/public-api-base";
 
 // ---------- Types (mirror backend Pydantic schemas) ----------
 
@@ -120,7 +119,7 @@ async function apiFetch<T>(
   params?: Record<string, string | number | undefined>,
   options?: RequestInit
 ): Promise<T> {
-  const url = new URL(path, API_BASE);
+  const url = new URL(path, getPublicApiBase());
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== "") {
@@ -176,7 +175,7 @@ export async function fetchMatrix(
 export async function simulateShock(
   req: ShockRequest
 ): Promise<ShockResultResponse> {
-  const res = await fetch(`${API_BASE}/api/structural/shock`, {
+  const res = await fetch(`${getPublicApiBase()}/api/structural/shock`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
