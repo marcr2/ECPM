@@ -10,6 +10,7 @@ import {
   GitBranch,
   PieChart,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { INDICATOR_DEFS } from "@/lib/indicator-defs";
@@ -50,6 +51,13 @@ const phases = [
     phase: 5,
     enabled: true,
   },
+  {
+    name: "Methodology",
+    href: "/methodology",
+    icon: BookOpen,
+    phase: 0,
+    enabled: true,
+  },
 ];
 
 /** Sub-links for the Indicators section */
@@ -59,8 +67,6 @@ const indicatorSubLinks = [
     name: d.name,
     href: `/indicators/${d.slug}`,
   })),
-  { name: "Methodology", href: "/indicators/methodology" },
-  { name: "Compare", href: "/indicators/compare" },
 ];
 
 export function Sidebar() {
@@ -133,11 +139,11 @@ export function Sidebar() {
                       showSubNav && "rotate-180"
                     )}
                   />
-                ) : (
+                ) : phase.phase > 0 ? (
                   <span className="ml-auto text-[9px] font-medium text-muted-foreground">
                     P{phase.phase}
                   </span>
-                )}
+                ) : null}
               </Link>
 
               {/* Collapsible sub-navigation for Indicators */}

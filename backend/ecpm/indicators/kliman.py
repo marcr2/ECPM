@@ -15,11 +15,12 @@ from __future__ import annotations
 import pandas as pd
 
 from ecpm.indicators.base import IndicatorDoc, MethodologyMapper, NIPAMapping
+from ecpm.indicators.financial import methodology_independent_indicator_docs
 
-# FRED series IDs used by this methodology
-SERIES_NATIONAL_INCOME = "A053RC1Q027SBEA"
-SERIES_COMPENSATION = "A576RC1"
-SERIES_NET_FIXED_ASSETS_HISTORICAL = "K1NTOTL1HI000"
+# Series IDs used by this methodology
+SERIES_NATIONAL_INCOME = "BEA:T11200:L1"  # BEA NIPA Table 1.12, Line 1 (Total National Income)
+SERIES_COMPENSATION = "A576RC1"  # FRED (Compensation of Employees, billions USD)
+SERIES_NET_FIXED_ASSETS_HISTORICAL = "BEA:FAAt203:L1"  # BEA Fixed Assets Table 2.3, Line 1
 
 # Internal data dict keys
 _KEY_NI = "national_income"
@@ -48,9 +49,11 @@ class KlimanMapper(MethodologyMapper):
     that Shaikh/Tonak's current-cost measure does not show.
 
     Series key convention:
-        - national_income: FRED A053RC1Q027SBEA (National Income)
-        - compensation: FRED A576RC1 (Compensation of Employees)
-        - net_fixed_assets_historical: FRED K1NTOTL1HI000 (Historical-Cost Net Stock)
+        - national_income: BEA:T11200:L1 (Total National Income, millions USD;
+          divided by 1000 in computation to match V scale in billions)
+        - compensation: FRED A576RC1 (Compensation of Employees, billions USD)
+        - net_fixed_assets_historical: BEA:FAAt203:L1 (Historical-Cost Net Stock
+          of Private Fixed Assets, millions USD; divided by 1000)
     """
 
     @property
@@ -66,8 +69,12 @@ class KlimanMapper(MethodologyMapper):
     # ------------------------------------------------------------------
 
     def _surplus_value(self, data: dict[str, pd.Series]) -> pd.Series:
-        """S = National Income - Compensation of Employees."""
-        return data[_KEY_NI] - data[_KEY_COMP]
+        """S = National Income - Compensation of Employees.
+
+        National Income (BEA) is in millions; Compensation (FRED) is in billions.
+        """
+        ni = data[_KEY_NI] / 1000.0  # BEA data in millions -> billions
+        return ni - data[_KEY_COMP]
 
     def _variable_capital(self, data: dict[str, pd.Series]) -> pd.Series:
         """V = Compensation of Employees."""
@@ -78,8 +85,10 @@ class KlimanMapper(MethodologyMapper):
 
         This is the TSSI distinguishing choice: capital is valued at
         historical (original purchase) prices, not replacement cost.
+        BEA reports this series in millions; convert to billions to align
+        with compensation (billions).
         """
-        return data[_KEY_ASSETS]
+        return data[_KEY_ASSETS] / 1000.0
 
     def compute_rate_of_profit(self, data: dict[str, pd.Series]) -> pd.Series:
         """Compute rate of profit: r = S / (C + V).
@@ -147,11 +156,11 @@ class KlimanMapper(MethodologyMapper):
     # ------------------------------------------------------------------
 
     def get_required_series(self) -> list[str]:
-        """Return FRED series IDs needed for core indicator computation."""
+        """Return series IDs needed for core indicator computation."""
         return [
-            SERIES_NATIONAL_INCOME,
-            SERIES_COMPENSATION,
-            SERIES_NET_FIXED_ASSETS_HISTORICAL,
+            SERIES_NATIONAL_INCOME,          # BEA:T11200:L1
+            SERIES_COMPENSATION,             # A576RC1
+            SERIES_NET_FIXED_ASSETS_HISTORICAL,  # BEA:FAAt203:L1
         ]
 
     def get_documentation(self) -> list[IndicatorDoc]:
@@ -160,9 +169,12 @@ class KlimanMapper(MethodologyMapper):
             marx_category="national_income",
             nipa_table="T11200",
             nipa_line=1,
-            nipa_description="National income",
+            nipa_description="National income (total)",
             operation="direct",
-            notes="FRED series A053RC1Q027SBEA",
+            notes=(
+                "BEA NIPA Table 1.12, Line 1 (BEA:T11200:L1). "
+                "Same source as Shaikh/Tonak. Converted from millions to billions."
+            ),
         )
         comp_mapping = NIPAMapping(
             marx_category="variable_capital",
@@ -174,16 +186,18 @@ class KlimanMapper(MethodologyMapper):
         )
         assets_mapping = NIPAMapping(
             marx_category="constant_capital",
-            nipa_table="FAAt102",
-            nipa_line=2,
+            nipa_table="FAAt203",
+            nipa_line=1,
             nipa_description="Historical-cost net stock of private fixed assets",
             operation="direct",
             notes=(
-                "FRED series K1NTOTL1HI000. Kliman's TSSI uses historical-cost "
-                "(original purchase price) valuation. When inflation decelerates, "
-                "historical-cost capital grows faster than current-cost, producing "
-                "a persistently lower rate of profit that does not 'recover' in "
-                "the neoliberal period as current-cost measures suggest."
+                "BEA Fixed Assets Table 2.3, Line 1 (BEA:FAAt203:L1). "
+                "Millions USD, converted to billions in computation. "
+                "Kliman's TSSI uses historical-cost (original purchase price) "
+                "valuation. When inflation decelerates, historical-cost capital "
+                "grows faster than current-cost, producing a persistently lower "
+                "rate of profit that does not 'recover' in the neoliberal period "
+                "as current-cost measures suggest."
             ),
         )
 
@@ -242,4 +256,4 @@ class KlimanMapper(MethodologyMapper):
                 mappings=[ni_mapping, comp_mapping],
                 citations=[_CITATION],
             ),
-        ]
+        ] + methodology_independent_indicator_docs(marxist_citation=_CITATION)

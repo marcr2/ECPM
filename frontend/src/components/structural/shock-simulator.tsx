@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { ShockRequest } from "@/lib/structural-api";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 interface Industry {
   code: string;
@@ -38,6 +39,18 @@ export function ShockSimulator({
   const [magnitude, setMagnitude] = useState(0);
   const [shockType, setShockType] = useState<"supply" | "demand">("demand");
 
+  const industryOptions = useMemo(
+    () =>
+      [...industries]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((ind) => ({
+          value: ind.code,
+          label: ind.name,
+          detail: ind.code,
+        })),
+    [industries],
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedIndustry) return;
@@ -59,18 +72,13 @@ export function ShockSimulator({
         >
           Target Industry
         </label>
-        <select
+        <SearchableSelect
           id="industry-select"
+          options={industryOptions}
           value={selectedIndustry}
-          onChange={(e) => setSelectedIndustry(e.target.value)}
-          className="h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-        >
-          {industries.map((ind) => (
-            <option key={ind.code} value={ind.code} className="bg-background">
-              {ind.code} - {ind.name}
-            </option>
-          ))}
-        </select>
+          onChange={setSelectedIndustry}
+          placeholder="Search industries…"
+        />
       </div>
 
       {/* Magnitude slider */}

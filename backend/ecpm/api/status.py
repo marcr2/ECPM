@@ -14,14 +14,20 @@ import uuid
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ecpm.auth.jwt import decode_access_token, require_auth
+from ecpm.auth.models import TokenData
+from ecpm.api.forecasting import require_training_auth
 from ecpm.config import get_settings
 from ecpm.database import get_db
+from ecpm.middleware.rate_limit import RATE_READ, RATE_WRITE, limiter
 from ecpm.models.series_metadata import SeriesMetadata
 from ecpm.schemas.series import FetchStatusResponse, FetchTriggerResponse
+
+_FETCH_STREAM_TOKEN_PARAM = "token"
 
 logger = structlog.get_logger(__name__)
 
@@ -36,7 +42,9 @@ def _get_redis():
 
 
 @router.get("/status", response_model=FetchStatusResponse)
+@limiter.limit(RATE_READ)
 async def get_status(
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> FetchStatusResponse:
     """Return aggregate pipeline health: counts, last fetch, errors.
@@ -103,7 +111,11 @@ async def get_status(
 
 
 @router.post("/fetch", response_model=FetchTriggerResponse)
-async def trigger_fetch() -> FetchTriggerResponse:
+@limiter.limit(RATE_WRITE)
+async def trigger_fetch(
+    request: Request,
+    _identity: str = Depends(require_training_auth),
+) -> FetchTriggerResponse:
     """Submit a Celery task to fetch all series data.
 
     Returns the task ID for monitoring progress. If Celery is unavailable,
@@ -133,14 +145,131 @@ async def trigger_fetch() -> FetchTriggerResponse:
     return FetchTriggerResponse(task_id=task_id, status=status)
 
 
+@router.post("/fetch-io", response_model=FetchTriggerResponse)
+@limiter.limit(RATE_WRITE)
+async def trigger_fetch_io(
+    request: Request,
+    _identity: str = Depends(require_training_auth),
+) -> FetchTriggerResponse:
+    """Submit a Celery task to fetch BEA I-O tables and compute coefficients.
+
+    Returns the task ID for monitoring progress.
+    """
+    try:
+        from ecpm.tasks.structural_tasks import fetch_io_tables
+
+        result = fetch_io_tables.delay()
+        task_id = str(result.id)
+        status = "submitted"
+        logger.info("fetch_io.triggered", task_id=task_id)
+    except Exception:
+        task_id = str(uuid.uuid4())
+        status = "error"
+        logger.error("fetch_io.trigger_failed", exc_info=True)
+
+    return FetchTriggerResponse(task_id=task_id, status=status)
+
+
+@router.post("/fetch-concentration", response_model=FetchTriggerResponse)
+@limiter.limit(RATE_WRITE)
+async def trigger_fetch_concentration(
+    request: Request,
+    _identity: str = Depends(require_training_auth),
+) -> FetchTriggerResponse:
+    """Submit a Celery task to fetch Census concentration data.
+
+    Returns the task ID for monitoring progress.
+    """
+    try:
+        from ecpm.tasks.concentration_tasks import fetch_concentration_data
+
+        result = fetch_concentration_data.delay()
+        task_id = str(result.id)
+        status = "submitted"
+        logger.info("fetch_concentration.triggered", task_id=task_id)
+    except Exception:
+        task_id = str(uuid.uuid4())
+        status = "error"
+        logger.error("fetch_concentration.trigger_failed", exc_info=True)
+
+    return FetchTriggerResponse(task_id=task_id, status=status)
+
+
+@router.get("/io-status")
+@limiter.limit(RATE_READ)
+async def get_io_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return I-O data status: years loaded, total cells, last update."""
+    from ecpm.models.io_table import IOMetadata
+
+    stmt = select(IOMetadata).order_by(IOMetadata.year.desc())
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    years_loaded = [r.year for r in rows]
+    last_updated = max((r.last_updated for r in rows), default=None) if rows else None
+
+    return {
+        "years_loaded": years_loaded,
+        "total_tables": len(rows),
+        "last_updated": str(last_updated) if last_updated else None,
+    }
+
+
+@router.get("/concentration-status")
+@limiter.limit(RATE_READ)
+async def get_concentration_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return concentration data status: industries loaded, years, last update."""
+    from ecpm.models.concentration import IndustryConcentration
+
+    count_result = await db.execute(
+        select(func.count()).select_from(IndustryConcentration)
+    )
+    total_rows = count_result.scalar_one()
+
+    years_result = await db.execute(
+        select(IndustryConcentration.year).distinct().order_by(IndustryConcentration.year.desc())
+    )
+    years = [r[0] for r in years_result.all()]
+
+    industries_result = await db.execute(
+        select(func.count(func.distinct(IndustryConcentration.naics_code)))
+    )
+    num_industries = industries_result.scalar_one()
+
+    return {
+        "total_rows": total_rows,
+        "years_loaded": years,
+        "num_industries": num_industries,
+    }
+
+
 @router.get("/fetch/stream")
-async def fetch_stream():
+async def fetch_stream(
+    token: Optional[str] = Query(None, alias=_FETCH_STREAM_TOKEN_PARAM),
+):
     """Stream fetch progress events via Server-Sent Events (SSE).
+
+    Requires a valid JWT passed as a ``token`` query parameter (the browser
+    EventSource API cannot send Authorization headers).
 
     Subscribes to a Redis pubsub channel for real-time fetch progress updates.
     If Redis is unavailable, sends a heartbeat stream that completes after
     a brief period.
     """
+    from jose import JWTError
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token query parameter")
+    try:
+        decode_access_token(token)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
     try:
         from sse_starlette.sse import EventSourceResponse
     except ImportError:

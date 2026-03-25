@@ -76,31 +76,28 @@ ECPM uses a microservices architecture with 5 containerized services orchestrate
 1. **Scheduled Ingestion**: Celery Beat triggers daily data fetch at 6:00 AM ET
 2. **External APIs**: Celery workers pull data from FRED, BEA, and Census APIs
 3. **Storage**: Raw observations stored in TimescaleDB hypertables
-4. **Feature Engineering**: Computed indicators (rate of profit, OCC, etc.) cached in Redis
-5. **Model Training**: At 6:05 AM ET, VAR/SVAR/regime models retrain on latest data
+4. **Feature Engineering**: Computed indicators (rate of profit, OCC, etc.) cached on disk (24h) and selectively in Redis
+5. **Model Training**: At 6:05 AM ET, VECM retrains on latest data
 6. **API Layer**: FastAPI serves data, indicators, forecasts, and I-O analysis
 7. **Frontend**: Next.js dashboard fetches via REST API, receives SSE notifications
 
-## Crisis Typologies
+## Crisis Mechanisms
 
-The system synthesizes six crisis mechanisms into a unified analytical framework:
+The Composite Crisis Index synthesises three mechanism sub-indices, each aggregating related indicators:
 
-1. **TRPF** (Marx) — Tendency of the rate of profit to fall via rising organic composition
-2. **Realization crisis** (Luxemburg/Marx) — Surplus value cannot be realized in circulation
-3. **Disproportionality** (Marx Vol. II/Leontief) — Anarchic sectoral allocation breaks reproduction conditions
-4. **Financial fragility** (Marx Vol. III/Engels) — Credit and fictitious capital mask and amplify contradictions
-5. **Imperialist displacement** (Lenin/Luxemburg) — Crisis exported to periphery until exhaustion
-6. **Cybernetic dysfunction** (Beer) — Capitalist economy structurally lacks viable feedback/control
+1. **TRPF** (Marx) — Tendency of the rate of profit to fall via rising organic composition. Indicators: rate of profit (inverted), OCC, rate of surplus value (inverted), mass of profit.
+2. **Realization crisis** (Luxemburg/Marx) — Surplus value cannot be realized in circulation. Indicator: productivity-wage gap.
+3. **Financial fragility** (Marx Vol. III/Engels) — Credit and fictitious capital mask and amplify contradictions. Indicators: credit-to-GDP gap, financial-to-real asset ratio, debt service ratio.
 
 ## Modules
 
 | # | Module                       | Status      | Description                                                            |
 |---|------------------------------|-------------|------------------------------------------------------------------------|
 | 1 | Data Ingestion               | Complete    | FRED/BEA/Census pipeline, TimescaleDB storage, scheduled fetching      |
-| 2 | Feature Engineering          | Complete    | NIPA-to-Marx translation (rate of profit, OCC, exploitation rate)      |
-| 3 | Predictive Modeling          | Complete    | VAR/SVAR forecasting, regime-switching, Composite Crisis Index         |
+| 2 | Feature Engineering          | Complete    | NIPA-to-Marx translation (Shaikh/Tonak + Kliman TSSI methodologies)    |
+| 3 | Predictive Modeling          | Complete    | VECM forecasting, Composite Crisis Index, historical backtesting       |
 | 4 | Structural Analysis          | Complete    | Leontief I-O, shock propagation, reproduction schema                   |
-| 5 | Corporate Concentration      | Complete    | HHI/CR4/CR8 metrics, concentration-to-crisis correlation analysis      |
+| 5 | Corporate Concentration      | Complete    | HHI/CR4/CR8 metrics, SEC EDGAR + Census data, trend analysis           |
 
 ## Features
 
@@ -112,20 +109,21 @@ The system synthesizes six crisis mechanisms into a unified analytical framework
 - **TimescaleDB storage** preserving native data frequencies
 
 ### Phase 2: Marxist Indicators
-- **Rate of profit** computation with multiple methodologies (Shaikh-Tonak, Kliman, Moseley)
+- **Rate of profit** computation with dual methodologies (Shaikh/Tonak current-cost, Kliman TSSI historical-cost)
 - **Organic composition of capital** (constant capital / variable capital)
 - **Rate of surplus value** (exploitation rate)
-- **Financial indicators**: credit-GDP gap, debt-service ratio, productivity-wage gap
+- **Mass of profit** (absolute surplus value)
+- **Financial indicators**: credit-GDP gap, debt-service ratio, productivity-wage gap, financial-to-real asset ratio
 - **Interactive comparison** of indicator values across methodologies
 - **KaTeX formula rendering** showing computational derivations
 
 ### Phase 3: Predictive Modeling
-- **VAR/SVAR forecasting** with 8-quarter horizon and confidence intervals
-- **Markov regime-switching** detection (expansion vs. crisis states)
-- **Composite Crisis Index** (0-100 scale) aggregating all crisis mechanisms
-- **Historical backtesting** against major recessions (2001, 2008 GFC, 2020 COVID)
+- **VECM forecasting** with Johansen cointegration rank selection and up to 40-quarter horizon
+- **Recursive residual bootstrap** confidence intervals (68% and 95% bands, 1 000 replications)
+- **Composite Crisis Index** (0-100 scale) aggregating three mechanism sub-indices (TRPF, realization, financial fragility) with logistic-regression-learned weights
+- **Historical backtesting** against 14 crisis episodes (1929-2023) with 12- and 24-month early-warning evaluation
 - **Forecast overlay** on indicator charts with toggle controls
-- **Auto-retraining** pipeline via Celery Beat
+- **Auto-retraining** pipeline via Celery Beat with SSE progress streaming
 
 ### Phase 4: Structural Analysis
 - **Leontief input-output analysis** from BEA Use/Make tables
@@ -882,13 +880,12 @@ docker exec -it ecpm-redis-1 redis-cli
 │   │   ├── indicators/               # Marxist indicator computation
 │   │   │   ├── base.py               # Base indicator framework
 │   │   │   ├── shaikh_tonak.py       # Shaikh-Tonak methodology
-│   │   │   ├── kliman.py             # Kliman methodology
-│   │   │   ├── moseley.py            # Moseley methodology
+│   │   │   ├── kliman.py             # Kliman TSSI methodology
 │   │   │   └── financial.py          # Financial indicators (credit gap, etc.)
 │   │   ├── modeling/                 # Predictive modeling
-│   │   │   ├── var_forecast.py       # VAR/SVAR forecasting
-│   │   │   ├── regime_switching.py   # Markov regime detection
-│   │   │   └── crisis_index.py       # Composite Crisis Index
+│   │   │   ├── vecm_model.py         # VECM fitting and forecasting
+│   │   │   ├── crisis_index.py       # Composite Crisis Index
+│   │   │   └── backtest.py           # Historical backtesting engine
 │   │   ├── structural/               # Input-Output analysis
 │   │   │   ├── leontief.py           # Leontief inverse computation
 │   │   │   ├── departments.py        # Department I/II classification
@@ -939,7 +936,7 @@ docker exec -it ecpm-redis-1 redis-cli
 │   │   │   ├── layout.tsx            # Root layout with sidebar
 │   │   │   ├── indicators/           # Indicator charts + comparison
 │   │   │   │   └── page.tsx
-│   │   │   ├── forecasting/          # VAR forecasts + regime + CCI
+│   │   │   ├── forecasting/          # VECM forecasts + crisis index
 │   │   │   │   └── page.tsx
 │   │   │   ├── structural/           # I-O matrix + shock simulation
 │   │   │   │   └── page.tsx
@@ -985,7 +982,7 @@ docker exec -it ecpm-redis-1 redis-cli
 - **`backend/ecpm/api/`**: FastAPI route handlers, organized by domain (data, indicators, forecasting, structural, concentration)
 - **`backend/ecpm/tasks/`**: Celery async tasks for scheduled data fetch (6:00 AM) and model retraining (6:05 AM)
 - **`backend/ecpm/indicators/`**: Core Marxist indicator logic (rate of profit, OCC, s/v) with multiple methodologies
-- **`backend/ecpm/modeling/`**: Econometric forecasting (VAR/SVAR) and crisis detection (regime-switching, composite index)
+- **`backend/ecpm/modeling/`**: Econometric forecasting (VECM) and Composite Crisis Index
 - **`backend/ecpm/structural/`**: Leontief I-O analysis, shock propagation, reproduction schema
 - **`backend/ecpm/concentration/`**: HHI/CR4/CR8 metrics and lead-lag correlation analysis
 - **`frontend/src/app/`**: Next.js pages with App Router (server + client components)
@@ -1006,7 +1003,7 @@ docker exec -it ecpm-redis-1 redis-cli
 - `GET /api/indicators/methodologies` — List methodology documentation
 
 ### Forecasting
-- `GET /api/forecasting/forecasts` — Get VAR forecast results
+- `GET /api/forecasting/forecasts` — Get VECM forecast results
 - `GET /api/forecasting/regime` — Get current regime detection
 - `GET /api/forecasting/crisis-index` — Get composite crisis index
 - `GET /api/forecasting/backtests` — Get historical backtest results

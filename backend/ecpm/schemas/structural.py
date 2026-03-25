@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MatrixResponse(BaseModel):
@@ -22,6 +22,9 @@ class MatrixResponse(BaseModel):
     col_labels: list[str]
     matrix_type: str  # "coefficients", "inverse", "flows"
     diagnostics: Optional[dict] = None
+    # BEA descriptions from ingestion (per axis code); empty if unavailable.
+    row_display_labels: list[str] = Field(default_factory=list)
+    col_display_labels: list[str] = Field(default_factory=list)
 
 
 class ShockRequest(BaseModel):
@@ -60,8 +63,8 @@ class DepartmentValues(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    c: float  # Constant capital
-    v: float  # Variable capital
+    c: float  # Constant capital (see ReproductionResponse.constant_capital_unit)
+    v: float  # Variable capital (see ReproductionResponse.labor_and_surplus_unit)
     s: float  # Surplus value
 
 
@@ -119,6 +122,11 @@ class ReproductionResponse(BaseModel):
     flows: list[list[float]]  # 2x2 inter-department flow matrix
     proportionality: ProportionalityCheck
     sankey_data: Optional[SankeyData] = None
+    # c is only in millions_of_dollars when the BEA dollar Use table is used;
+    # otherwise it is a dimensionless aggregate of technical coefficients.
+    constant_capital_unit: str = "millions_of_dollars"
+    # v/s follow FRED national totals: millions if paired with dollar Use, else billions.
+    labor_and_surplus_unit: str = "millions_of_dollars"
 
 
 class CriticalSector(BaseModel):

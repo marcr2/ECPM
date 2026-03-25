@@ -88,20 +88,40 @@ export function IndicatorChart({
     return nearest;
   }
 
-  const mappedCrises = CRISIS_EPISODES.map(crisis => {
-    const mappedStart = findNearestDate(crisis.startDate) ?? crisis.startDate;
-    const mappedEnd = findNearestDate(crisis.endDate) ?? crisis.endDate;
+  const firstDataDate = chartData[0]?.date;
+  const lastDataDate = chartData[chartData.length - 1]?.date;
 
-    return {
-      ...crisis,
-      startDate: mappedStart,
-      endDate: mappedEnd,
-    };
-  }).filter(crisis => {
-    // Filter out crises where start and end are the same (outside data range)
-    // or where the crisis doesn't overlap with the chart data
-    return crisis.startDate !== crisis.endDate;
-  });
+  const mappedCrises = CRISIS_EPISODES
+    // Pre-filter: only keep crises whose original period overlaps the data range
+    .filter(crisis => {
+      if (!firstDataDate || !lastDataDate) return false;
+      return crisis.endDate >= firstDataDate && crisis.startDate <= lastDataDate;
+    })
+    .map(crisis => {
+      let mappedStart = findNearestDate(crisis.startDate) ?? crisis.startDate;
+      let mappedEnd = findNearestDate(crisis.endDate) ?? crisis.endDate;
+
+      // When a crisis is shorter than the data resolution (e.g. COVID on
+      // annual data), both boundaries collapse to the same point. Expand the
+      // range so the annotation still spans at least two adjacent data points.
+      if (mappedStart === mappedEnd) {
+        const idx = chartData.findIndex((d) => d.date === mappedStart);
+        if (idx >= 0 && idx < chartData.length - 1) {
+          mappedEnd = chartData[idx + 1].date;
+        } else if (idx > 0) {
+          // At the very last point – expand backwards instead
+          mappedStart = chartData[idx - 1].date;
+        }
+      }
+
+      return {
+        ...crisis,
+        originalStart: crisis.startDate,
+        originalEnd: crisis.endDate,
+        startDate: mappedStart,
+        endDate: mappedEnd,
+      };
+    });
 
 
 
@@ -175,7 +195,7 @@ export function IndicatorChart({
             color: "var(--muted-foreground)",
           }}
         />
-        {/* Crisis annotations MUST come before Line elements for proper z-ordering */}
+        {/* Shaded crisis regions (back-most layer) */}
         {crisisMode === "shaded" && mappedCrises.map((crisis) => (
           <ReferenceArea
             key={crisis.name}
@@ -185,6 +205,19 @@ export function IndicatorChart({
             fillOpacity={0.15}
             stroke={crisis.color}
             strokeOpacity={0.4}
+            yAxisId="left"
+            ifOverflow="extendDomain"
+          />
+        ))}
+        {/* Crisis labels: in front of shading, behind data lines */}
+        {crisisMode === "shaded" && mappedCrises.map((crisis) => (
+          <ReferenceArea
+            key={`${crisis.name}-label`}
+            x1={crisis.startDate}
+            x2={crisis.endDate}
+            fill="transparent"
+            fillOpacity={0}
+            stroke="none"
             yAxisId="left"
             ifOverflow="extendDomain"
             label={{
@@ -198,7 +231,26 @@ export function IndicatorChart({
           />
         ))}
         {crisisMode === "lines" && mappedCrises.flatMap((crisis) => [
-          // Transparent area just for the centered label
+          <ReferenceLine
+            key={`${crisis.name}-start`}
+            x={crisis.startDate}
+            stroke={crisis.color}
+            strokeWidth={3}
+            strokeDasharray="5 5"
+            yAxisId="left"
+            ifOverflow="extendDomain"
+          />,
+          <ReferenceLine
+            key={`${crisis.name}-end`}
+            x={crisis.endDate}
+            stroke={crisis.color}
+            strokeWidth={3}
+            strokeDasharray="5 5"
+            yAxisId="left"
+            ifOverflow="extendDomain"
+          />,
+        ])}
+        {crisisMode === "lines" && mappedCrises.map((crisis) => (
           <ReferenceArea
             key={`${crisis.name}-label`}
             x1={crisis.startDate}
@@ -216,28 +268,8 @@ export function IndicatorChart({
               fill: crisis.color,
               angle: -90,
             }}
-          />,
-          // Start line
-          <ReferenceLine
-            key={`${crisis.name}-start`}
-            x={crisis.startDate}
-            stroke={crisis.color}
-            strokeWidth={3}
-            strokeDasharray="5 5"
-            yAxisId="left"
-            ifOverflow="extendDomain"
-          />,
-          // End line
-          <ReferenceLine
-            key={`${crisis.name}-end`}
-            x={crisis.endDate}
-            stroke={crisis.color}
-            strokeWidth={3}
-            strokeDasharray="5 5"
-            yAxisId="left"
-            ifOverflow="extendDomain"
-          />,
-        ])}
+          />
+        ))}
         <Line
           yAxisId="left"
           type="monotone"

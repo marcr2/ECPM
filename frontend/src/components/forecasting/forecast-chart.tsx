@@ -23,7 +23,12 @@ interface ForecastChartProps {
   title?: string;
 }
 
-const HORIZON_OPTIONS = [6, 12, 18, 24];
+const HORIZON_OPTIONS = [
+  { quarters: 4, label: "1Y" },
+  { quarters: 12, label: "3Y" },
+  { quarters: 20, label: "5Y" },
+  { quarters: 40, label: "10Y" },
+];
 
 /**
  * Forecast chart with historical data and confidence intervals.
@@ -40,7 +45,7 @@ export function ForecastChart({
   title,
 }: ForecastChartProps) {
   const [selectedHorizon, setSelectedHorizon] = useState(
-    data.horizon_quarters || 8
+    data.horizon_quarters || 40
   );
 
   // Combine historical and forecast data
@@ -107,12 +112,12 @@ export function ForecastChart({
         <div className="flex gap-1">
           {HORIZON_OPTIONS.map((h) => (
             <Button
-              key={h}
-              variant={selectedHorizon === h ? "default" : "outline"}
+              key={h.quarters}
+              variant={selectedHorizon === h.quarters ? "default" : "outline"}
               size="xs"
-              onClick={() => setSelectedHorizon(h)}
+              onClick={() => setSelectedHorizon(h.quarters)}
             >
-              {h}Q
+              {h.label}
             </Button>
           ))}
         </div>

@@ -146,6 +146,23 @@ class CensusClient:
 
         return df
 
+    @staticmethod
+    def _naics_variable(year: int) -> str:
+        """Return the correct NAICS variable name for a given Census year.
+
+        Census CBP datasets use vintage-specific NAICS codes:
+        2017+ use NAICS2017, 2012-2016 use NAICS2012, etc.
+        """
+        if year >= 2017:
+            return "NAICS2017"
+        if year >= 2012:
+            return "NAICS2012"
+        if year >= 2007:
+            return "NAICS2007"
+        if year >= 2002:
+            return "NAICS2002"
+        return "NAICS1997"
+
     def fetch_concentration_data(
         self,
         year: int,
@@ -164,10 +181,11 @@ class CensusClient:
             Dict with concentration-related metrics, or empty dict if unavailable.
         """
         try:
-            # Use County Business Patterns for establishment data
+            naics_var = self._naics_variable(year)
+
             variables = [
-                "NAICS2017",
-                "NAICS2017_LABEL",
+                naics_var,
+                f"{naics_var}_LABEL",
                 "ESTAB",
                 "EMP",
                 "PAYANN",
@@ -175,7 +193,7 @@ class CensusClient:
 
             predicates = {
                 "for": "us:*",
-                "NAICS2017": naics_code,
+                naics_var: naics_code,
             }
 
             df = self._api_request(
@@ -188,11 +206,10 @@ class CensusClient:
             if df.empty:
                 return {}
 
-            # Parse results
             row = df.iloc[0]
             return {
-                "naics_code": str(row.get("NAICS2017", naics_code)),
-                "naics_name": str(row.get("NAICS2017_LABEL", "")),
+                "naics_code": str(row.get(naics_var, naics_code)),
+                "naics_name": str(row.get(f"{naics_var}_LABEL", "")),
                 "num_establishments": int(row.get("ESTAB", 0) or 0),
                 "employment": int(row.get("EMP", 0) or 0),
                 "annual_payroll": float(row.get("PAYANN", 0) or 0),
@@ -231,18 +248,19 @@ class CensusClient:
             or empty DataFrame if unavailable.
         """
         try:
-            # Try Economic Census basic data
+            naics_var = self._naics_variable(year)
+
             variables = [
-                "NAICS2017",
-                "NAICS2017_LABEL",
-                "RCPTOT",  # Total receipts
+                naics_var,
+                f"{naics_var}_LABEL",
+                "RCPTOT",
                 "ESTAB",
                 "EMP",
             ]
 
             predicates = {
                 "for": "us:*",
-                "NAICS2017": industry,
+                naics_var: industry,
             }
 
             df = self._api_request(
@@ -253,13 +271,12 @@ class CensusClient:
             )
 
             if df.empty:
-                # Fall back to CBP
                 df = self._api_request(
                     dataset="cbp",
                     year=year,
                     variables=[
-                        "NAICS2017",
-                        "NAICS2017_LABEL",
+                        naics_var,
+                        f"{naics_var}_LABEL",
                         "ESTAB",
                         "EMP",
                         "PAYANN",

@@ -78,8 +78,9 @@ export default function IndicatorDetailPage({
     async function loadFormula() {
       try {
         const docs = await fetchMethodologyDocs(methodology);
+        const apiSlug = slug.replace(/-/g, "_");
         const doc = docs.indicators?.find(
-          (d) => d.indicator_slug === slug
+          (d) => d.indicator_slug === apiSlug
         );
         setFormulaDoc(doc ?? null);
       } catch {

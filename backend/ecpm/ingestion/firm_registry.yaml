@@ -1,0 +1,364 @@
+# Curated firm-level dataset for corporate concentration analysis.
+#
+# Maps each tracked 3-digit NAICS sector to its dominant publicly-traded
+# firms with SEC EDGAR CIK numbers.  The EdgarClient pulls annual revenue
+# from XBRL CompanyFacts for every CIK listed here, aggregates by parent
+# company, and computes real CR4 / CR8 / HHI.
+#
+# `parent` groups subsidiaries and post-M&A entities under one umbrella.
+# When a firm has been acquired (e.g. Pioneer -> ExxonMobil in 2024),
+# set its parent to the acquirer so revenues roll up correctly.
+#
+# Maintenance: update this file when major M&A occurs or a new top-10
+# entrant appears.  The weekly EDGAR task will automatically pick up
+# changes on the next run.
+
+industries:
+
+  # ── Department I — Means of Production ──────────────────────────
+
+  "211":  # Oil and gas extraction
+    name: "Oil and Gas Extraction"
+    firms:
+      - {name: "Exxon Mobil Corporation",       cik: 34088,    parent: "ExxonMobil"}
+      - {name: "Chevron Corporation",            cik: 93410,    parent: "Chevron"}
+      - {name: "ConocoPhillips",                 cik: 1163165,  parent: "ConocoPhillips"}
+      - {name: "EOG Resources Inc",              cik: 821189,   parent: "EOG Resources"}
+      - {name: "Occidental Petroleum Corp",      cik: 797468,   parent: "Occidental"}
+      - {name: "Pioneer Natural Resources Co",   cik: 1038357,  parent: "ExxonMobil"}
+      - {name: "Devon Energy Corp",              cik: 1090012,  parent: "Devon Energy"}
+      - {name: "Marathon Oil Corp",              cik: 101778,   parent: "Marathon Oil"}
+      - {name: "Diamondback Energy Inc",         cik: 1539838,  parent: "Diamondback"}
+      - {name: "Hess Corporation",               cik: 4447,     parent: "Chevron"}
+      - {name: "Phillips 66",                    cik: 1534701,  parent: "Phillips 66"}
+      - {name: "Marathon Petroleum Corp",        cik: 1510295,  parent: "Marathon Petroleum"}
+      - {name: "Valero Energy Corp",             cik: 1035002,  parent: "Valero"}
+
+  "212":  # Mining (except oil and gas)
+    name: "Mining (except Oil and Gas)"
+    firms:
+      - {name: "Freeport-McMoRan Inc",           cik: 831259,   parent: "Freeport-McMoRan"}
+      - {name: "Newmont Corp",                   cik: 1164727,  parent: "Newmont"}
+      - {name: "Southern Copper Corp",           cik: 1001838,  parent: "Southern Copper"}
+      - {name: "Nucor Corp",                     cik: 73309,    parent: "Nucor"}
+      - {name: "Cleveland-Cliffs Inc",           cik: 764065,   parent: "Cleveland-Cliffs"}
+      - {name: "Mosaic Co",                      cik: 1285785,  parent: "Mosaic"}
+      - {name: "Arch Resources Inc",             cik: 1037676,  parent: "Arch Resources"}
+      - {name: "CONSOL Energy Inc",              cik: 1710366,  parent: "CONSOL Energy"}
+
+  "221":  # Utilities
+    name: "Utilities"
+    firms:
+      - {name: "NextEra Energy Inc",             cik: 753308,   parent: "NextEra Energy"}
+      - {name: "Duke Energy Corp",               cik: 1326160,  parent: "Duke Energy"}
+      - {name: "Southern Co",                    cik: 92122,    parent: "Southern Company"}
+      - {name: "Dominion Energy Inc",            cik: 715957,   parent: "Dominion Energy"}
+      - {name: "American Electric Power Co Inc", cik: 4904,     parent: "AEP"}
+      - {name: "Sempra",                         cik: 1032208,  parent: "Sempra"}
+      - {name: "Exelon Corp",                    cik: 1109357,  parent: "Exelon"}
+      - {name: "Xcel Energy Inc",                cik: 72903,    parent: "Xcel Energy"}
+      - {name: "Consolidated Edison Inc",        cik: 1047862,  parent: "ConEdison"}
+      - {name: "Entergy Corp",                   cik: 65580,    parent: "Entergy"}
+
+  "236":  # Construction of buildings
+    name: "Construction of Buildings"
+    firms:
+      - {name: "D.R. Horton Inc",                cik: 882184,   parent: "D.R. Horton"}
+      - {name: "Lennar Corp",                    cik: 920760,   parent: "Lennar"}
+      - {name: "NVR Inc",                        cik: 906163,   parent: "NVR"}
+      - {name: "PulteGroup Inc",                 cik: 822416,   parent: "PulteGroup"}
+      - {name: "Toll Brothers Inc",              cik: 794170,   parent: "Toll Brothers"}
+      - {name: "Meritage Homes Corp",            cik: 318833,   parent: "Meritage Homes"}
+      - {name: "Taylor Morrison Home Corp",      cik: 1562476,  parent: "Taylor Morrison"}
+      - {name: "MDC Holdings Inc",               cik: 799292,   parent: "MDC Holdings"}
+
+  "237":  # Heavy and civil engineering
+    name: "Heavy and Civil Engineering Construction"
+    firms:
+      - {name: "Quanta Services Inc",            cik: 1060349,  parent: "Quanta Services"}
+      - {name: "EMCOR Group Inc",                cik: 105634,   parent: "EMCOR"}
+      - {name: "MasTec Inc",                     cik: 876883,   parent: "MasTec"}
+      - {name: "Dycom Industries Inc",           cik: 67215,    parent: "Dycom"}
+      - {name: "Granite Construction Inc",       cik: 861459,   parent: "Granite"}
+      - {name: "Tutor Perini Corp",              cik: 1060714,  parent: "Tutor Perini"}
+
+  "325":  # Chemical manufacturing
+    name: "Chemical Manufacturing"
+    firms:
+      - {name: "Dow Inc",                        cik: 1751788,  parent: "Dow"}
+      - {name: "LyondellBasell Industries NV",   cik: 1489393,  parent: "LyondellBasell"}
+      - {name: "Linde plc",                      cik: 1707925,  parent: "Linde"}
+      - {name: "Air Products & Chemicals Inc",   cik: 2969,     parent: "Air Products"}
+      - {name: "PPG Industries Inc",             cik: 79879,    parent: "PPG Industries"}
+      - {name: "Eastman Chemical Co",            cik: 915389,   parent: "Eastman Chemical"}
+      - {name: "Celanese Corp",                  cik: 1306830,  parent: "Celanese"}
+      - {name: "Huntsman Corp",                  cik: 1307954,  parent: "Huntsman"}
+      - {name: "DuPont de Nemours Inc",          cik: 1666700,  parent: "DuPont"}
+
+  "326":  # Plastics and rubber
+    name: "Plastics and Rubber Products"
+    firms:
+      - {name: "Berry Global Group Inc",         cik: 802481,   parent: "Berry Global"}
+      - {name: "Sealed Air Corp",                cik: 1012100,  parent: "Sealed Air"}
+      - {name: "AptarGroup Inc",                 cik: 896622,   parent: "AptarGroup"}
+      - {name: "Trex Co Inc",                    cik: 1069974,  parent: "Trex"}
+      - {name: "Myers Industries Inc",           cik: 69488,    parent: "Myers Industries"}
+
+  "331":  # Primary metals
+    name: "Primary Metal Manufacturing"
+    firms:
+      - {name: "Nucor Corp",                     cik: 73309,    parent: "Nucor"}
+      - {name: "Steel Dynamics Inc",             cik: 1022671,  parent: "Steel Dynamics"}
+      - {name: "Cleveland-Cliffs Inc",           cik: 764065,   parent: "Cleveland-Cliffs"}
+      - {name: "United States Steel Corp",       cik: 1163302,  parent: "US Steel"}
+      - {name: "Commercial Metals Co",           cik: 23598,    parent: "CMC"}
+      - {name: "Alcoa Corp",                     cik: 1675149,  parent: "Alcoa"}
+      - {name: "Century Aluminum Co",            cik: 949157,   parent: "Century Aluminum"}
+
+  "332":  # Fabricated metal products
+    name: "Fabricated Metal Product Manufacturing"
+    firms:
+      - {name: "Parker-Hannifin Corp",           cik: 76334,    parent: "Parker-Hannifin"}
+      - {name: "Illinois Tool Works Inc",        cik: 49826,    parent: "Illinois Tool Works"}
+      - {name: "Ball Corp",                      cik: 9389,     parent: "Ball"}
+      - {name: "Crown Holdings Inc",             cik: 23222,    parent: "Crown Holdings"}
+      - {name: "Timken Co",                      cik: 98222,    parent: "Timken"}
+      - {name: "Mueller Water Products Inc",     cik: 1392857,  parent: "Mueller Water"}
+
+  "333":  # Machinery manufacturing
+    name: "Machinery Manufacturing"
+    firms:
+      - {name: "Caterpillar Inc",                cik: 18230,    parent: "Caterpillar"}
+      - {name: "Deere & Co",                     cik: 315189,   parent: "Deere"}
+      - {name: "AGCO Corp",                      cik: 880266,   parent: "AGCO"}
+      - {name: "Cummins Inc",                    cik: 26172,    parent: "Cummins"}
+      - {name: "Dover Corp",                     cik: 29905,    parent: "Dover"}
+      - {name: "Xylem Inc",                      cik: 1524472,  parent: "Xylem"}
+      - {name: "Flowserve Corp",                 cik: 30625,    parent: "Flowserve"}
+      - {name: "Terex Corp",                     cik: 858339,   parent: "Terex"}
+
+  "334":  # Computer and electronic products
+    name: "Computer and Electronic Product Manufacturing"
+    firms:
+      - {name: "Apple Inc",                      cik: 320193,   parent: "Apple"}
+      - {name: "Intel Corp",                     cik: 50863,    parent: "Intel"}
+      - {name: "NVIDIA Corp",                    cik: 1045810,  parent: "NVIDIA"}
+      - {name: "Texas Instruments Inc",          cik: 97476,    parent: "Texas Instruments"}
+      - {name: "Broadcom Inc",                   cik: 1649338,  parent: "Broadcom"}
+      - {name: "Qualcomm Inc",                   cik: 804328,   parent: "Qualcomm"}
+      - {name: "Advanced Micro Devices Inc",     cik: 2488,     parent: "AMD"}
+      - {name: "Micron Technology Inc",          cik: 723125,   parent: "Micron"}
+      - {name: "Applied Materials Inc",          cik: 6951,     parent: "Applied Materials"}
+      - {name: "Lam Research Corp",              cik: 707549,   parent: "Lam Research"}
+
+  "335":  # Electrical equipment
+    name: "Electrical Equipment and Appliance Manufacturing"
+    firms:
+      - {name: "Emerson Electric Co",            cik: 32604,    parent: "Emerson Electric"}
+      - {name: "Eaton Corp plc",                 cik: 31462,    parent: "Eaton"}
+      - {name: "Hubbell Inc",                    cik: 48898,    parent: "Hubbell"}
+      - {name: "Acuity Brands Inc",              cik: 1144215,  parent: "Acuity Brands"}
+      - {name: "Regal Rexnord Corp",             cik: 82811,    parent: "Regal Rexnord"}
+      - {name: "nVent Electric plc",             cik: 1720635,  parent: "nVent"}
+
+  "336":  # Transportation equipment
+    name: "Transportation Equipment Manufacturing"
+    firms:
+      - {name: "General Motors Co",              cik: 1467858,  parent: "General Motors"}
+      - {name: "Ford Motor Co",                  cik: 37996,    parent: "Ford"}
+      - {name: "Tesla Inc",                      cik: 1318605,  parent: "Tesla"}
+      - {name: "PACCAR Inc",                     cik: 75362,    parent: "PACCAR"}
+      - {name: "General Dynamics Corp",          cik: 40533,    parent: "General Dynamics"}
+      - {name: "Lockheed Martin Corp",           cik: 936468,   parent: "Lockheed Martin"}
+      - {name: "Raytheon Technologies Corp",     cik: 101829,   parent: "RTX"}
+      - {name: "Boeing Co",                      cik: 12927,    parent: "Boeing"}
+      - {name: "Northrop Grumman Corp",          cik: 1133421,  parent: "Northrop Grumman"}
+      - {name: "L3Harris Technologies Inc",      cik: 202058,   parent: "L3Harris"}
+
+  "423":  # Merchant wholesalers - durable goods
+    name: "Merchant Wholesalers, Durable Goods"
+    firms:
+      - {name: "WESCO International Inc",        cik: 929136,   parent: "WESCO"}
+      - {name: "Fastenal Co",                    cik: 815556,   parent: "Fastenal"}
+      - {name: "W.W. Grainger Inc",              cik: 76282,    parent: "Grainger"}
+      - {name: "Pool Corp",                      cik: 945841,   parent: "Pool Corp"}
+      - {name: "ScanSource Inc",                 cik: 918965,   parent: "ScanSource"}
+
+  "424":  # Merchant wholesalers - nondurable goods
+    name: "Merchant Wholesalers, Nondurable Goods"
+    firms:
+      - {name: "McKesson Corp",                  cik: 927653,   parent: "McKesson"}
+      - {name: "AmerisourceBergen Corp",         cik: 1140859,  parent: "Cencora"}
+      - {name: "Cardinal Health Inc",            cik: 721371,   parent: "Cardinal Health"}
+      - {name: "Sysco Corp",                     cik: 823313,   parent: "Sysco"}
+      - {name: "US Foods Holding Corp",          cik: 1665002,  parent: "US Foods"}
+      - {name: "Performance Food Group Co",      cik: 1650164,  parent: "Performance Food Group"}
+
+  "484":  # Truck transportation
+    name: "Truck Transportation"
+    firms:
+      - {name: "United Parcel Service Inc",      cik: 1090727,  parent: "UPS"}
+      - {name: "FedEx Corp",                     cik: 1048911,  parent: "FedEx"}
+      - {name: "XPO Inc",                        cik: 1166003,  parent: "XPO"}
+      - {name: "Old Dominion Freight Line Inc",  cik: 878927,   parent: "Old Dominion"}
+      - {name: "Saia Inc",                       cik: 866374,   parent: "Saia"}
+      - {name: "Werner Enterprises Inc",         cik: 793074,   parent: "Werner"}
+      - {name: "Knight-Swift Transportation",    cik: 1492691,  parent: "Knight-Swift"}
+      - {name: "J.B. Hunt Transport Services",   cik: 728535,   parent: "J.B. Hunt"}
+
+  "517":  # Telecommunications
+    name: "Telecommunications"
+    firms:
+      - {name: "AT&T Inc",                       cik: 732717,   parent: "AT&T"}
+      - {name: "Verizon Communications Inc",     cik: 732712,   parent: "Verizon"}
+      - {name: "T-Mobile US Inc",                cik: 1283699,  parent: "T-Mobile"}
+      - {name: "Comcast Corp",                   cik: 1166691,  parent: "Comcast"}
+      - {name: "Charter Communications Inc",     cik: 1091667,  parent: "Charter"}
+      - {name: "Lumen Technologies Inc",         cik: 18926,    parent: "Lumen"}
+
+  # ── Department II — Means of Consumption ────────────────────────
+
+  "311":  # Food manufacturing
+    name: "Food Manufacturing"
+    firms:
+      - {name: "Tyson Foods Inc",                cik: 100493,   parent: "Tyson Foods"}
+      - {name: "Archer-Daniels-Midland Co",      cik: 7084,     parent: "ADM"}
+      - {name: "Mondelez International Inc",     cik: 1103982,  parent: "Mondelez"}
+      - {name: "General Mills Inc",              cik: 40704,    parent: "General Mills"}
+      - {name: "Kellogg Co",                     cik: 55067,    parent: "Kellanova"}
+      - {name: "Hormel Foods Corp",              cik: 48465,    parent: "Hormel"}
+      - {name: "Conagra Brands Inc",             cik: 23217,    parent: "Conagra"}
+      - {name: "Campbell Soup Co",               cik: 16732,    parent: "Campbell Soup"}
+      - {name: "Pilgrim's Pride Corp",           cik: 802481,   parent: "JBS USA"}
+      - {name: "Kraft Heinz Co",                 cik: 1637459,  parent: "Kraft Heinz"}
+
+  "312":  # Beverage and tobacco
+    name: "Beverage and Tobacco Product Manufacturing"
+    firms:
+      - {name: "PepsiCo Inc",                    cik: 77476,    parent: "PepsiCo"}
+      - {name: "Coca-Cola Co",                   cik: 21344,    parent: "Coca-Cola"}
+      - {name: "Philip Morris International Inc", cik: 1413329, parent: "Philip Morris"}
+      - {name: "Altria Group Inc",               cik: 764180,   parent: "Altria"}
+      - {name: "Molson Coors Beverage Co",       cik: 24545,    parent: "Molson Coors"}
+      - {name: "Constellation Brands Inc",       cik: 16918,    parent: "Constellation Brands"}
+      - {name: "Brown-Forman Corp",              cik: 14693,    parent: "Brown-Forman"}
+      - {name: "Monster Beverage Corp",          cik: 865752,   parent: "Monster Beverage"}
+
+  "315":  # Apparel manufacturing
+    name: "Apparel Manufacturing"
+    firms:
+      - {name: "NIKE Inc",                       cik: 320187,   parent: "Nike"}
+      - {name: "PVH Corp",                       cik: 78239,    parent: "PVH"}
+      - {name: "Hanesbrands Inc",                cik: 1359841,  parent: "Hanesbrands"}
+      - {name: "Tapestry Inc",                   cik: 1116132,  parent: "Tapestry"}
+      - {name: "Capri Holdings Ltd",             cik: 1530721,  parent: "Capri Holdings"}
+      - {name: "Under Armour Inc",               cik: 1336917,  parent: "Under Armour"}
+      - {name: "Ralph Lauren Corp",              cik: 1037038,  parent: "Ralph Lauren"}
+      - {name: "VF Corp",                        cik: 34068,    parent: "VF Corp"}
+
+  "441":  # Motor vehicle dealers
+    name: "Motor Vehicle and Parts Dealers"
+    firms:
+      - {name: "AutoNation Inc",                 cik: 350698,   parent: "AutoNation"}
+      - {name: "Penske Automotive Group Inc",    cik: 1057058,  parent: "Penske Auto"}
+      - {name: "Lithia Motors Inc",              cik: 1023128,  parent: "Lithia Motors"}
+      - {name: "Group 1 Automotive Inc",         cik: 1031203,  parent: "Group 1"}
+      - {name: "Sonic Automotive Inc",           cik: 1043509,  parent: "Sonic Automotive"}
+      - {name: "Asbury Automotive Group Inc",    cik: 1144980,  parent: "Asbury"}
+      - {name: "Carvana Co",                     cik: 1690820,  parent: "Carvana"}
+
+  "445":  # Food and beverage stores
+    name: "Food and Beverage Stores"
+    firms:
+      - {name: "Kroger Co",                      cik: 56873,    parent: "Kroger"}
+      - {name: "Albertsons Companies Inc",       cik: 1646972,  parent: "Albertsons"}
+      - {name: "Sprouts Farmers Market Inc",     cik: 1575515,  parent: "Sprouts"}
+      - {name: "Grocery Outlet Holding Corp",    cik: 1771515,  parent: "Grocery Outlet"}
+      - {name: "Natural Grocers by Vitamin Cottage", cik: 1547459, parent: "Natural Grocers"}
+
+  "448":  # Clothing stores
+    name: "Clothing and Clothing Accessories Stores"
+    firms:
+      - {name: "TJX Companies Inc",              cik: 109198,   parent: "TJX"}
+      - {name: "Ross Stores Inc",                cik: 745732,   parent: "Ross Stores"}
+      - {name: "Gap Inc",                        cik: 39911,    parent: "Gap"}
+      - {name: "Burlington Stores Inc",          cik: 1579298,  parent: "Burlington"}
+      - {name: "American Eagle Outfitters Inc",  cik: 919012,   parent: "American Eagle"}
+      - {name: "Abercrombie & Fitch Co",         cik: 1018840,  parent: "Abercrombie"}
+
+  "452":  # General merchandise stores
+    name: "General Merchandise Stores"
+    firms:
+      - {name: "Walmart Inc",                    cik: 104169,   parent: "Walmart"}
+      - {name: "Target Corp",                    cik: 27419,    parent: "Target"}
+      - {name: "Costco Wholesale Corp",          cik: 909832,   parent: "Costco"}
+      - {name: "Dollar General Corp",            cik: 34408,    parent: "Dollar General"}
+      - {name: "Dollar Tree Inc",                cik: 935703,   parent: "Dollar Tree"}
+      - {name: "BJ's Wholesale Club Holdings",   cik: 1531152,  parent: "BJ's"}
+
+  "454":  # Nonstore retailers
+    name: "Nonstore Retailers"
+    firms:
+      - {name: "Amazon.com Inc",                 cik: 1018724,  parent: "Amazon"}
+      - {name: "eBay Inc",                       cik: 1065088,  parent: "eBay"}
+      - {name: "Etsy Inc",                       cik: 1370637,  parent: "Etsy"}
+      - {name: "Wayfair Inc",                    cik: 1616533,  parent: "Wayfair"}
+      - {name: "Chewy Inc",                      cik: 1766502,  parent: "Chewy"}
+      - {name: "Overstock.com Inc",              cik: 1130713,  parent: "Overstock"}
+
+  "511":  # Publishing industries
+    name: "Publishing Industries"
+    firms:
+      - {name: "Alphabet Inc",                   cik: 1652044,  parent: "Alphabet"}
+      - {name: "Meta Platforms Inc",             cik: 1326801,  parent: "Meta"}
+      - {name: "Microsoft Corp",                 cik: 789019,   parent: "Microsoft"}
+      - {name: "Oracle Corp",                    cik: 1341439,  parent: "Oracle"}
+      - {name: "Salesforce Inc",                 cik: 1108524,  parent: "Salesforce"}
+      - {name: "Adobe Inc",                      cik: 796343,   parent: "Adobe"}
+      - {name: "New York Times Co",              cik: 71691,    parent: "NYT"}
+      - {name: "News Corp",                      cik: 1564708,  parent: "News Corp"}
+
+  "512":  # Motion picture and sound
+    name: "Motion Picture and Sound Recording"
+    firms:
+      - {name: "Walt Disney Co",                 cik: 1744489,  parent: "Disney"}
+      - {name: "Netflix Inc",                    cik: 1065280,  parent: "Netflix"}
+      - {name: "Warner Bros Discovery Inc",      cik: 1437107,  parent: "Warner Bros Discovery"}
+      - {name: "Paramount Global",               cik: 813828,   parent: "Paramount"}
+      - {name: "Lions Gate Entertainment Corp",  cik: 929351,   parent: "Lionsgate"}
+      - {name: "AMC Networks Inc",               cik: 1514991,  parent: "AMC Networks"}
+
+  "621":  # Ambulatory health care
+    name: "Ambulatory Health Care Services"
+    firms:
+      - {name: "UnitedHealth Group Inc",         cik: 731766,   parent: "UnitedHealth"}
+      - {name: "CVS Health Corp",                cik: 64803,    parent: "CVS Health"}
+      - {name: "Elevance Health Inc",            cik: 1156039,  parent: "Elevance"}
+      - {name: "Cigna Group",                    cik: 1739940,  parent: "Cigna"}
+      - {name: "HCA Healthcare Inc",             cik: 860730,   parent: "HCA"}
+      - {name: "Centene Corp",                   cik: 1071739,  parent: "Centene"}
+      - {name: "DaVita Inc",                     cik: 927066,   parent: "DaVita"}
+      - {name: "Laboratory Corp of America",     cik: 920148,   parent: "Labcorp"}
+
+  "622":  # Hospitals
+    name: "Hospitals"
+    firms:
+      - {name: "HCA Healthcare Inc",             cik: 860730,   parent: "HCA"}
+      - {name: "Community Health Systems Inc",   cik: 1108109,  parent: "CHS"}
+      - {name: "Tenet Healthcare Corp",          cik: 70318,    parent: "Tenet Healthcare"}
+      - {name: "Universal Health Services Inc",  cik: 352915,   parent: "UHS"}
+      - {name: "Select Medical Holdings Corp",   cik: 1320414,  parent: "Select Medical"}
+      - {name: "Encompass Health Corp",          cik: 785161,   parent: "Encompass Health"}
+
+  "722":  # Food services and drinking places
+    name: "Food Services and Drinking Places"
+    firms:
+      - {name: "McDonald's Corp",                cik: 63908,    parent: "McDonald's"}
+      - {name: "Starbucks Corp",                 cik: 829224,   parent: "Starbucks"}
+      - {name: "Yum! Brands Inc",                cik: 1041061,  parent: "Yum! Brands"}
+      - {name: "Chipotle Mexican Grill Inc",     cik: 1058090,  parent: "Chipotle"}
+      - {name: "Darden Restaurants Inc",         cik: 940944,   parent: "Darden"}
+      - {name: "Restaurant Brands International", cik: 1618756, parent: "RBI"}
+      - {name: "Domino's Pizza Inc",             cik: 1286681,  parent: "Domino's"}
+      - {name: "Wendy's International Inc",      cik: 818033,   parent: "Wendy's"}
+      - {name: "Jack in the Box Inc",            cik: 807882,   parent: "Jack in the Box"}

@@ -94,8 +94,11 @@ INDICATOR_DEFS: dict[IndicatorSlug, IndicatorDef] = {
         "units": "ratio",
         "category": "financial",
         "description": (
-            "Ratio of financial assets to real (tangible) assets. "
-            "Rising values indicate financialization of the economy."
+            "Ratio of total financial assets (Z.1 B.103) to real "
+            "(tangible) assets for the nonfinancial corporate sector. "
+            "Rising values indicate financialization -- a growing share "
+            "of corporate wealth held as fictitious capital rather than "
+            "real means of production."
         ),
     },
     IndicatorSlug.debt_service_ratio: {

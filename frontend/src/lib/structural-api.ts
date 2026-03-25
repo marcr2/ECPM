@@ -21,6 +21,10 @@ export interface MatrixResponse {
   col_labels: string[];
   matrix_type: string; // "coefficients", "inverse", "flows"
   diagnostics?: Record<string, unknown> | null;
+  /** BEA description per row code when ingested; may be empty. */
+  row_display_labels?: string[];
+  /** BEA description per column code when ingested; may be empty. */
+  col_display_labels?: string[];
 }
 
 export interface ShockRequest {
@@ -47,6 +51,14 @@ export interface DepartmentValues {
   v: number; // Variable capital
   s: number; // Surplus value
 }
+
+/** Unit for c — see API `constant_capital_unit`. */
+export type ConstantCapitalUnit =
+  | "millions_of_dollars"
+  | "coefficient_column_sum";
+
+/** Unit for v and s — see API `labor_and_surplus_unit`. */
+export type LaborSurplusUnit = "millions_of_dollars" | "billions_of_dollars";
 
 export interface ProportionalityCheck {
   i_v_plus_s: number;
@@ -82,6 +94,8 @@ export interface ReproductionResponse {
   flows: number[][]; // 2x2 inter-department flow matrix
   proportionality: ProportionalityCheck;
   sankey_data?: SankeyData | null;
+  constant_capital_unit: ConstantCapitalUnit;
+  labor_and_surplus_unit: LaborSurplusUnit;
 }
 
 export interface CriticalSector {

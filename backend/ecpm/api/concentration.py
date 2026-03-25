@@ -15,9 +15,11 @@ from typing import Optional
 
 import pandas as pd
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ecpm.middleware.rate_limit import RATE_READ, limiter
 
 from ecpm.cache import build_cache_key, cache_get, cache_set
 from ecpm.concentration import (
@@ -80,8 +82,56 @@ def _get_redis():
         return None
 
 
+async def _load_indicator_annual_series(
+    db: AsyncSession,
+) -> dict[str, pd.Series]:
+    """Load all 8 crisis indicator time series as annual averages.
+
+    Computes each indicator via the computation orchestrator, then
+    resamples to annual frequency for correlation with concentration data.
+
+    Returns:
+        Dict mapping indicator slug (hyphenated) to pd.Series indexed by year.
+    """
+    from ecpm.indicators.computation import compute_indicator
+    from ecpm.indicators.definitions import IndicatorSlug
+
+    # Default methodology
+    methodology = "shaikh-tonak"
+
+    indicator_data: dict[str, pd.Series] = {}
+
+    for slug_enum in IndicatorSlug:
+        slug_value = slug_enum.value  # e.g., "rate_of_profit"
+        # The INDICATOR_NAMES dict uses hyphenated slugs
+        hyphenated = slug_value.replace("_", "-")
+
+        try:
+            series = await compute_indicator(slug_value, methodology, db, redis=None)
+            if series.empty:
+                indicator_data[hyphenated] = pd.Series(dtype=float)
+                continue
+
+            # Resample to annual average
+            annual = series.resample("YE").mean().dropna()
+            # Re-index to year start dates for alignment with concentration data
+            annual.index = pd.to_datetime(annual.index.year.astype(str), format="%Y")
+            indicator_data[hyphenated] = annual
+        except Exception:
+            logger.warning(
+                "concentration.indicator_load_failed",
+                slug=slug_value,
+                exc_info=True,
+            )
+            indicator_data[hyphenated] = pd.Series(dtype=float)
+
+    return indicator_data
+
+
 @router.get("/industries", response_model=IndustriesResponse)
+@limiter.limit(RATE_READ)
 async def get_industries(
+    request: Request,
     department: Optional[str] = Query(
         None,
         description="Filter by department: 'I' or 'II'",
@@ -151,6 +201,7 @@ async def get_industries(
             hhi=conc.hhi,
             level=level,
             trend_direction=trend_direction,
+            data_source=getattr(conc, "data_source", None),
         ))
 
     response = IndustriesResponse(industries=industries)
@@ -164,7 +215,9 @@ async def get_industries(
 
 
 @router.get("/industry/{naics_code}/history", response_model=ConcentrationHistoryResponse)
+@limiter.limit(RATE_READ)
 async def get_industry_history(
+    request: Request,
     naics_code: str,
     db: AsyncSession = Depends(get_db),
 ) -> ConcentrationHistoryResponse:
@@ -230,7 +283,9 @@ async def get_industry_history(
 
 
 @router.get("/industry/{naics_code}/firms/{year}", response_model=FirmsResponse)
+@limiter.limit(RATE_READ)
 async def get_firms(
+    request: Request,
     naics_code: str,
     year: int,
     db: AsyncSession = Depends(get_db),
@@ -285,7 +340,9 @@ async def get_firms(
 
 
 @router.get("/correlations/{naics_code}", response_model=CorrelationsResponse)
+@limiter.limit(RATE_READ)
 async def get_correlations(
+    request: Request,
     naics_code: str,
     min_confidence: float = Query(50, description="Minimum confidence threshold"),
     db: AsyncSession = Depends(get_db),
@@ -324,20 +381,30 @@ async def get_correlations(
         for row in rows
     ])
 
-    # For now, return placeholder correlations
-    # In production, this would load indicator data from Phase 2
+    # Load real indicator time series and compute correlations
+    indicator_data = await _load_indicator_annual_series(db)
+
+    from ecpm.concentration import map_concentration_to_indicators
+
+    raw_correlations = map_concentration_to_indicators(
+        concentration_data=conc_df,
+        indicator_data=indicator_data,
+        naics_code=naics_code,
+    )
+
     correlations = []
-    for slug, name in INDICATOR_NAMES.items():
+    for corr in raw_correlations:
+        slug = corr["indicator_slug"]
+        name = INDICATOR_NAMES.get(slug, slug)
         correlations.append(CorrelationInfo(
             indicator_slug=slug,
             indicator_name=name,
-            correlation=0.0,
-            confidence=0.0,
-            lag_months=0,
-            relationship="none",
+            correlation=corr["correlation"],
+            confidence=corr["confidence"],
+            lag_months=corr["lag_months"],
+            relationship=corr["relationship"],
         ))
 
-    # Filter by confidence
     correlations = [c for c in correlations if c.confidence >= min_confidence]
 
     response = CorrelationsResponse(
@@ -355,8 +422,13 @@ async def get_correlations(
 
 
 @router.get("/top-correlations", response_model=TopCorrelationsResponse)
+@limiter.limit(RATE_READ)
 async def get_top_correlations(
-    min_confidence: float = Query(50, description="Minimum confidence threshold"),
+    request: Request,
+    min_confidence: float = Query(
+        25,
+        description="Minimum confidence threshold (annual panels use a short-series score)",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> TopCorrelationsResponse:
     """Get top 20 industry-indicator correlations by confidence."""
@@ -372,8 +444,58 @@ async def get_top_correlations(
         logger.debug("concentration.top-correlations.cache_hit", key=cache_key)
         return TopCorrelationsResponse.model_validate_json(cached)
 
-    # For now, return empty - requires full indicator data integration
-    response = TopCorrelationsResponse(correlations=[])
+    # Load all concentration data
+    stmt = select(IndustryConcentration).order_by(
+        IndustryConcentration.naics_code,
+        IndustryConcentration.year,
+    )
+    result = await db.execute(stmt)
+    all_rows = result.scalars().all()
+
+    if not all_rows:
+        response = TopCorrelationsResponse(correlations=[])
+        await cache_set(
+            cache_key, response.model_dump_json(), ttl=_CORRELATIONS_CACHE_TTL, redis=redis
+        )
+        return response
+
+    # Build DataFrame for all industries
+    all_df = pd.DataFrame([
+        {
+            "naics_code": r.naics_code,
+            "naics_name": r.naics_name or r.naics_code,
+            "year": r.year,
+            "cr4": r.cr4,
+            "hhi": r.hhi,
+        }
+        for r in all_rows
+    ])
+
+    # Load indicator data
+    indicator_data = await _load_indicator_annual_series(db)
+
+    from ecpm.concentration import find_strongest_correlations
+
+    top_df = find_strongest_correlations(
+        concentration_data=all_df,
+        indicator_data=indicator_data,
+        min_confidence=min_confidence,
+        top_n=20,
+    )
+
+    top_items = []
+    for _, row in top_df.iterrows():
+        slug = row.get("indicator_slug", "")
+        top_items.append(TopCorrelationItem(
+            naics=row.get("naics_code", ""),
+            industry=row.get("industry_name", ""),
+            indicator_slug=slug,
+            indicator_name=INDICATOR_NAMES.get(slug, slug),
+            correlation=row.get("correlation", 0.0),
+            confidence=row.get("confidence", 0.0),
+        ))
+
+    response = TopCorrelationsResponse(correlations=top_items)
 
     # Cache the response
     await cache_set(
@@ -384,7 +506,9 @@ async def get_top_correlations(
 
 
 @router.get("/overview", response_model=OverviewResponse)
+@limiter.limit(RATE_READ)
 async def get_overview(
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> OverviewResponse:
     """Get concentration overview with department-level aggregations."""
@@ -458,6 +582,7 @@ async def get_overview(
             hhi=conc.hhi,
             level=level,
             trend_direction=trend_direction,
+            data_source=getattr(conc, "data_source", None),
         ))
 
     # Top 5 most concentrated by HHI

@@ -21,36 +21,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Phase 2: Feature Engineering and Core Dashboard**
 - Marxist indicator computation engine
-- Rate of profit (TRPF) with multiple methodologies:
-  - Shaikh-Tonak: surplus value / (constant capital + variable capital)
-  - Kliman: historical-cost fixed assets in denominator
-  - Moseley: productive labor distinction
+- Rate of profit (TRPF) with dual methodologies:
+  - Shaikh/Tonak: surplus value / (current-cost constant capital + variable capital)
+  - Kliman TSSI: historical-cost fixed assets in denominator
 - Organic composition of capital (OCC): c/v ratio
 - Rate of surplus value (exploitation rate): s/v ratio
+- Mass of profit (absolute surplus value)
 - Financial indicators:
   - Credit-to-GDP gap with one-sided HP filter (BIS methodology)
   - Debt-service ratio
   - Productivity-wage gap
-  - Financial-to-real ratio
+  - Financial-to-real asset ratio
 - Interactive indicator charts with methodology comparison
 - KaTeX formula rendering for mathematical derivations
 - Methodology documentation with NIPA mappings and academic citations
 
 **Phase 3: Predictive Modeling and Crisis Index**
-- VAR (Vector Autoregression) forecasting with lag selection (AIC/BIC)
-- SVAR (Structural VAR) with Cholesky identification
-- 8-quarter forecast horizon with 95% confidence intervals
-- Markov regime-switching model (2-state: expansion/crisis)
-- Transition probability matrix and regime probabilities
-- Composite Crisis Index (0-100 scale) aggregating:
-  - TRPF component (inverted profit rate)
-  - OCC component (rising organic composition)
-  - Financial component (credit-GDP gap, debt-service ratio)
-  - Disproportionality component (from I-O analysis)
-- Historical backtesting against major recessions:
-  - 2001 Dot-com recession
-  - 2008 Global Financial Crisis
-  - 2020 COVID-19 recession
+- VECM (Vector Error Correction Model) forecasting with Johansen cointegration rank selection
+- Up to 40-quarter forecast horizon with 68% and 95% confidence intervals (recursive residual bootstrap, 1 000 replications)
+- Composite Crisis Index (0-100 scale) aggregating three mechanism sub-indices:
+  - TRPF sub-index (inverted profit rate, OCC, inverted rate of surplus value, mass of profit)
+  - Realization sub-index (productivity-wage gap)
+  - Financial sub-index (credit-GDP gap, financial-to-real ratio, debt-service ratio)
+- Mechanism weights learned via L2-regularised logistic regression on NBER USREC proximity target
+- Historical backtesting against 14 crisis episodes (1929–2023) with 12- and 24-month early-warning evaluation
 - Forecast overlay toggle on indicator charts
 - Auto-retraining pipeline via Celery Beat (5-minute offset from data refresh)
 - SSE streaming for training progress notifications
@@ -102,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FastAPI 0.135+ with async/await
 - SQLAlchemy 2.0 (async) with asyncpg driver
 - Celery 5.6 with Redis broker
-- statsmodels for VAR/regime-switching models
+- statsmodels for VECM fitting and Johansen cointegration tests
 - numpy/scipy for matrix operations
 - pandas for time-series manipulation
 - structlog for structured logging
@@ -128,8 +122,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - BEA I-O tables require manual annual update (API provides only latest year)
 - Census concentration data has ~2 year reporting lag
-- Regime-switching may produce spurious transitions on short time series (<40 observations)
-- SVAR identification assumes recursive (Cholesky) structure
+- VECM cointegration rank forced to 1 when Johansen trace test finds rank 0 (preserves level dynamics)
+- Logistic weight learning falls back to equal 1/3 weights when fewer than 30 training observations
 - Department I/II classification uses simplified NAICS mapping (no detailed BLS input)
 
 ### Dependencies

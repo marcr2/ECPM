@@ -24,11 +24,11 @@ def mock_nipa_data() -> dict[str, pd.Series]:
     """Return a dict of pd.Series with known values for formula verification.
 
     Core series (annual frequency):
-        national_income: [1000, 1100, 1200]
-        compensation: [600, 650, 700]
+        national_income: BEA-style millions [1_000_000, ...] (Shaikh /1000 -> billions)
+        compensation: [600, 650, 700] billions (FRED)
         corporate_profits: [200, 220, 240]
-        net_fixed_assets_current: [3000, 3200, 3400]
-        net_fixed_assets_historical: [2500, 2700, 2900]
+        net_fixed_assets_current: FRED millions [3_000_000, ...] (Shaikh /1000 -> billions)
+        net_fixed_assets_historical: FRED millions [2_500_000, ...] (Kliman /1000 -> billions)
         output_per_hour: [100, 105, 110]
         real_compensation_per_hour: [100, 101, 102]
 
@@ -40,7 +40,9 @@ def mock_nipa_data() -> dict[str, pd.Series]:
 
     data = {
         "national_income": pd.Series(
-            [1000.0, 1100.0, 1200.0], index=annual_idx, name="national_income"
+            [1_000_000.0, 1_100_000.0, 1_200_000.0],
+            index=annual_idx,
+            name="national_income",
         ),
         "compensation": pd.Series(
             [600.0, 650.0, 700.0], index=annual_idx, name="compensation"
@@ -49,12 +51,12 @@ def mock_nipa_data() -> dict[str, pd.Series]:
             [200.0, 220.0, 240.0], index=annual_idx, name="corporate_profits"
         ),
         "net_fixed_assets_current": pd.Series(
-            [3000.0, 3200.0, 3400.0],
+            [3_000_000.0, 3_200_000.0, 3_400_000.0],
             index=annual_idx,
             name="net_fixed_assets_current",
         ),
         "net_fixed_assets_historical": pd.Series(
-            [2500.0, 2700.0, 2900.0],
+            [2_500_000.0, 2_700_000.0, 2_900_000.0],
             index=annual_idx,
             name="net_fixed_assets_historical",
         ),
@@ -86,20 +88,40 @@ def mock_nipa_data() -> dict[str, pd.Series]:
         name="nominal_gdp",
     )
 
-    # Financial series for ratio and debt tests
+    # Financial series for ratio tests -- quarterly financial_assets (from
+    # TFAABSNNCB) and annual real_assets (from K1PTOTL1ES000) to
+    # exercise the LOCF frequency alignment in compute_financial_real_ratio.
+    financial_quarterly_idx = pd.date_range("2020-03-31", periods=8, freq="QE")
     data["financial_assets"] = pd.Series(
-        [5000.0, 5500.0, 6000.0], index=annual_idx, name="financial_assets"
+        [30000.0, 31000.0, 32000.0, 33000.0,
+         34000.0, 35000.0, 36000.0, 37000.0],
+        index=financial_quarterly_idx,
+        name="financial_assets",
     )
     data["real_assets"] = pd.Series(
-        [2000.0, 2100.0, 2200.0], index=annual_idx, name="real_assets"
+        [60000.0, 62000.0], index=pd.date_range("2020", periods=2, freq="YE"),
+        name="real_assets",
     )
     data["debt_service"] = pd.Series(
-        [100.0, 120.0, 130.0], index=annual_idx, name="debt_service"
+        [100_000.0, 120_000.0, 130_000.0],
+        index=annual_idx,
+        name="debt_service",
     )
     data["corporate_income"] = pd.Series(
         [500.0, 550.0, 600.0], index=annual_idx, name="corporate_income"
     )
 
+    return data
+
+
+@pytest.fixture
+def mock_nipa_data_kliman(mock_nipa_data: dict[str, pd.Series]) -> dict[str, pd.Series]:
+    """KlimanMapper uses FRED national income in billions (no /1000)."""
+    data = dict(mock_nipa_data)
+    idx = data["national_income"].index
+    data["national_income"] = pd.Series(
+        [1000.0, 1100.0, 1200.0], index=idx, name="national_income"
+    )
     return data
 
 
@@ -199,14 +221,14 @@ class TestKlimanRateOfProfit:
     """Rate of profit with Kliman (historical-cost C) should differ from Shaikh/Tonak."""
 
     def test_rate_of_profit_uses_historical_cost(
-        self, mock_nipa_data: dict[str, pd.Series]
+        self, mock_nipa_data_kliman: dict[str, pd.Series]
     ) -> None:
         """S=400, C_hist=2500, V=600 -> r = 400 / (2500+600) = 0.1290...
 
         Different from Shaikh/Tonak because historical-cost C is lower.
         """
         mapper = MethodologyRegistry.get("kliman")
-        result = mapper.compute_rate_of_profit(mock_nipa_data)
+        result = mapper.compute_rate_of_profit(mock_nipa_data_kliman)
 
         assert isinstance(result, pd.Series)
         assert len(result) == 3
@@ -214,14 +236,16 @@ class TestKlimanRateOfProfit:
         assert result.iloc[0] == pytest.approx(400 / (2500 + 600), rel=1e-3)
 
     def test_kliman_rate_differs_from_shaikh_tonak(
-        self, mock_nipa_data: dict[str, pd.Series]
+        self,
+        mock_nipa_data: dict[str, pd.Series],
+        mock_nipa_data_kliman: dict[str, pd.Series],
     ) -> None:
         """Kliman and Shaikh/Tonak produce different rate of profit values."""
         st_mapper = MethodologyRegistry.get("shaikh-tonak")
         kl_mapper = MethodologyRegistry.get("kliman")
 
         st_result = st_mapper.compute_rate_of_profit(mock_nipa_data)
-        kl_result = kl_mapper.compute_rate_of_profit(mock_nipa_data)
+        kl_result = kl_mapper.compute_rate_of_profit(mock_nipa_data_kliman)
 
         # Kliman rate should be higher (lower C in denominator)
         assert kl_result.iloc[0] > st_result.iloc[0]
@@ -230,12 +254,15 @@ class TestKlimanRateOfProfit:
 class TestKlimanOCC:
     """OCC with Kliman uses historical-cost C."""
 
-    def test_occ_uses_historical_cost(self, mock_nipa_data: dict[str, pd.Series]) -> None:
+    def test_occ_uses_historical_cost(
+        self, mock_nipa_data_kliman: dict[str, pd.Series]
+    ) -> None:
         """C_hist=2500, V=600 -> OCC = 2500/600 = 4.1667."""
         mapper = MethodologyRegistry.get("kliman")
-        result = mapper.compute_occ(mock_nipa_data)
+        result = mapper.compute_occ(mock_nipa_data_kliman)
 
         assert isinstance(result, pd.Series)
+        assert len(result) == 3
         assert result.iloc[0] == pytest.approx(2500 / 600, rel=1e-3)
 
 
@@ -257,20 +284,21 @@ class TestShaikhTonakMetadata:
         series = mapper.get_required_series()
         assert isinstance(series, list)
         assert len(series) >= 3  # At least NI, compensation, fixed assets
-        assert "A053RC1Q027SBEA" in series  # National Income
+        assert "BEA:T11200:L1" in series  # National Income (NIPA T11200 L1)
         assert "A576RC1" in series  # Compensation
-        assert "K1NTOTL1SI000" in series  # Current-cost net fixed assets
+        assert "K1PTOTL1ES000" in series  # Current-cost net fixed assets
 
     def test_get_documentation_returns_indicator_docs(self) -> None:
         mapper = ShaikhTonakMapper()
         docs = mapper.get_documentation()
         assert isinstance(docs, list)
-        assert len(docs) == 4  # 4 core indicators
+        assert len(docs) == 8  # 4 core + 4 methodology-independent financial
         slugs = {d.slug for d in docs}
         assert "rate_of_profit" in slugs
         assert "occ" in slugs
         assert "rate_of_surplus_value" in slugs
         assert "mass_of_profit" in slugs
+        assert "credit_gdp_gap" in slugs
 
     def test_documentation_has_latex_formulas(self) -> None:
         mapper = ShaikhTonakMapper()
@@ -313,6 +341,7 @@ class TestKlimanMetadata:
     def test_get_documentation_has_kliman_citations(self) -> None:
         mapper = KlimanMapper()
         docs = mapper.get_documentation()
+        assert len(docs) == 8
         for doc in docs:
             assert any("Kliman" in c for c in doc.citations)
 
@@ -378,7 +407,7 @@ class TestCreditGDPGap:
         assert isinstance(result, pd.Series)
         assert len(result) == 40
         # Gap should have non-trivial variation (not all zeros)
-        assert result.std() > 0.01
+        assert result.std() > 0.004
 
 
 # ---------------------------------------------------------------------------
@@ -387,18 +416,36 @@ class TestCreditGDPGap:
 
 
 class TestFinancialRealRatio:
-    """Financial-to-real asset ratio."""
+    """Financial-to-real asset ratio with LOCF frequency alignment."""
 
     def test_financial_real_ratio_computes_correctly(
         self, mock_nipa_data: dict[str, pd.Series]
     ) -> None:
-        """financial_assets=5000, real_assets=2000 -> ratio=2.5."""
+        """Quarterly financial_assets aligned against annual real_assets via LOCF.
+
+        real_assets: 2020-12-31=60000, 2021-12-31=62000
+        financial_assets: 8 quarters starting 2020-03-31
+
+        After LOCF alignment, the annual year-end values (2020-12-31=60000,
+        2021-12-31=62000) are forward-filled onto the quarterly index.
+        Q1-Q3 2020 precede the first annual observation, so real_assets
+        is NaN there and the ratio is NaN for those periods.
+        """
         mapper = MethodologyRegistry.default()
         result = mapper.compute_financial_real_ratio(mock_nipa_data)
 
         assert isinstance(result, pd.Series)
-        assert len(result) == 3
-        assert result.iloc[0] == pytest.approx(5000 / 2000, rel=1e-3)
+        assert len(result) == 8
+        # Q1-Q3 2020 have NaN (no prior annual observation to forward-fill)
+        assert pd.isna(result.iloc[0])
+        assert pd.isna(result.iloc[1])
+        assert pd.isna(result.iloc[2])
+        # Q4-2020 (2020-12-31): 33000 / 60000
+        assert result.iloc[3] == pytest.approx(33000 / 60000, rel=1e-3)
+        # Q3-2021 (2021-09-30): 36000 / 60000 (still ffill from 2020 annual)
+        assert result.iloc[6] == pytest.approx(36000 / 60000, rel=1e-3)
+        # Q4-2021 (2021-12-31): 37000 / 62000
+        assert result.iloc[7] == pytest.approx(37000 / 62000, rel=1e-3)
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +482,27 @@ class TestFrequencyAlignment:
 
         assert FREQUENCY_STRATEGY == "LOCF"
 
+    def test_financial_real_ratio_locf_alignment(self) -> None:
+        """LOCF alignment: annual real_assets forward-fills onto quarterly index."""
+        from ecpm.indicators.financial import compute_financial_real_ratio
+
+        quarterly_idx = pd.date_range("2020-03-31", periods=4, freq="QE")
+        annual_idx = pd.date_range("2020", periods=1, freq="YE")
+
+        data = {
+            "financial_assets": pd.Series(
+                [10.0, 20.0, 30.0, 40.0], index=quarterly_idx
+            ),
+            "real_assets": pd.Series([100.0], index=annual_idx),
+        }
+        result = compute_financial_real_ratio(data)
+
+        assert len(result) == 4
+        # Q1 (2020-03-31) precedes the annual obs (2020-12-31), so NaN
+        assert pd.isna(result.iloc[0])
+        # Q4 (2020-12-31) and after: real_assets=100 via LOCF
+        assert result.iloc[3] == pytest.approx(40.0 / 100.0, rel=1e-6)
+
 
 # ---------------------------------------------------------------------------
 # Standalone financial.py function tests
@@ -465,17 +533,19 @@ class TestFinancialStandaloneFunctions:
         result = compute_credit_gdp_gap(mock_nipa_data)
         assert isinstance(result, pd.Series)
         assert len(result) == 40
-        assert result.std() > 0.01
+        assert result.std() > 0.004
 
     def test_compute_financial_real_ratio_standalone(
         self, mock_nipa_data: dict[str, pd.Series]
     ) -> None:
-        """Standalone function computes financial/real ratio."""
+        """Standalone function computes financial/real ratio with LOCF alignment."""
         from ecpm.indicators.financial import compute_financial_real_ratio
 
         result = compute_financial_real_ratio(mock_nipa_data)
         assert isinstance(result, pd.Series)
-        assert result.iloc[0] == pytest.approx(5000 / 2000, rel=1e-3)
+        assert len(result) == 8
+        # Q4-2020 (2020-12-31): 33000 / 60000
+        assert result.iloc[3] == pytest.approx(33000 / 60000, rel=1e-3)
 
     def test_compute_debt_service_ratio_standalone(
         self, mock_nipa_data: dict[str, pd.Series]

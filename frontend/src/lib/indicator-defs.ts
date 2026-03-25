@@ -54,7 +54,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     name: "Financial-to-Real Asset Ratio",
     units: "ratio",
     category: "financial",
-    description: "Financial assets / tangible assets",
+    description: "Total financial assets (Z.1 B.103) / tangible assets for nonfinancial corporate sector",
   },
   {
     slug: "debt-service-ratio",

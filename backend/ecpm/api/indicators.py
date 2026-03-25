@@ -10,7 +10,9 @@ Provides:
 IMPORTANT: methodology routes are defined BEFORE the dynamic {slug} routes
 to prevent "methodology" from being captured as a slug parameter.
 
-All endpoints use Redis caching with appropriate TTLs.
+Caching: overview and per-indicator detail use **disk cache** (24h TTL) via
+``cache_manager``.  Methodology listings and the compare endpoint use
+**Redis** (``cache.build_cache_key`` → ``ecpm:api:…``, 1h data / 24h docs).
 """
 
 from __future__ import annotations
@@ -19,8 +21,10 @@ import json
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ecpm.middleware.rate_limit import RATE_READ, limiter
 
 from ecpm.cache import build_cache_key, cache_get, cache_set
 from ecpm.cache_manager import (
@@ -100,7 +104,9 @@ def _mapper_to_doc_response(mapper) -> MethodologyDocResponse:
 
 
 @router.get("/", response_model=IndicatorOverviewResponse)
+@limiter.limit(RATE_READ)
 async def indicator_overview(
+    request: Request,
     methodology: str = Query("shaikh-tonak", description="Methodology slug"),
     db: AsyncSession = Depends(get_db),
 ) -> IndicatorOverviewResponse:
@@ -160,7 +166,8 @@ async def indicator_overview(
 
 
 @router.get("/methodology", response_model=list[MethodologyDocResponse])
-async def list_methodology_docs() -> list[MethodologyDocResponse]:
+@limiter.limit(RATE_READ)
+async def list_methodology_docs(request: Request) -> list[MethodologyDocResponse]:
     """Return documentation for all registered methodologies.
 
     Each methodology includes its indicator definitions with LaTeX formulas,
@@ -191,7 +198,9 @@ async def list_methodology_docs() -> list[MethodologyDocResponse]:
 @router.get(
     "/methodology/{methodology_slug}", response_model=MethodologyDocResponse
 )
+@limiter.limit(RATE_READ)
 async def get_methodology_doc(
+    request: Request,
     methodology_slug: str,
 ) -> MethodologyDocResponse:
     """Return documentation for a single methodology.
@@ -234,7 +243,9 @@ async def get_methodology_doc(
 
 
 @router.get("/{slug}", response_model=IndicatorResponse)
+@limiter.limit(RATE_READ)
 async def indicator_detail(
+    request: Request,
     slug: str,
     methodology: str = Query("shaikh-tonak", description="Methodology slug"),
     start: Optional[str] = Query(None, description="Start date (ISO format)"),
@@ -271,8 +282,8 @@ async def indicator_detail(
     logger.info("indicators.computing_detail", methodology=methodology, slug=slug)
     try:
         series = await compute_indicator(slug, methodology, db, redis=None)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Indicator '{slug}' not found")
     except Exception:
         logger.error(
             "indicators.detail_failed",
@@ -342,7 +353,9 @@ async def indicator_detail(
 
 
 @router.get("/{slug}/compare")
+@limiter.limit(RATE_READ)
 async def indicator_compare(
+    request: Request,
     slug: str,
     db: AsyncSession = Depends(get_db),
 ) -> list[IndicatorResponse]:

@@ -31,6 +31,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getSectorName } from "@/lib/bea-sector-names";
+import { resolveIoAxisLabel } from "@/lib/structural-labels";
 
 type TabType = "matrix" | "shock" | "reproduction";
 
@@ -40,14 +42,11 @@ interface DataState<T> {
   error: string | null;
 }
 
-// Default BEA benchmark years
-const DEFAULT_YEARS = [1997, 2002, 2007, 2012, 2017, 2022];
-
 /**
  * Main structural analysis page with I-O matrix, shock simulation, and reproduction schema.
  *
  * Features:
- * - Year selector controls all tabs
+ * - Year selector lists only years with ingested coefficient I-O data (from API)
  * - Three tabs: I-O Matrix, Shock Simulation, Reproduction Schema
  * - Auto-fetch data based on active tab and selected year
  * - Manual refresh button
@@ -56,11 +55,10 @@ export default function StructuralPage() {
   const [activeTab, setActiveTab] = useState<TabType>("matrix");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Year state
-  const [years, setYears] = useState<number[]>(DEFAULT_YEARS);
-  const [selectedYear, setSelectedYear] = useState<number>(
-    DEFAULT_YEARS[DEFAULT_YEARS.length - 1]
-  );
+  const [years, setYears] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [yearsLoading, setYearsLoading] = useState(true);
+  const [yearsError, setYearsError] = useState<string | null>(null);
 
   // Data states
   const [matrix, setMatrix] = useState<DataState<MatrixResponse>>({
@@ -102,26 +100,44 @@ export default function StructuralPage() {
     value: 0,
   });
 
-  // Fetch available years on mount
   useEffect(() => {
     const loadYears = async () => {
+      setYearsLoading(true);
+      setYearsError(null);
       try {
         const response = await fetchYears();
-        if (response.years.length > 0) {
-          setYears(response.years);
-          setSelectedYear(response.years[response.years.length - 1]);
+        const list = [...response.years].sort((a, b) => b - a);
+        setYears(list);
+        if (list.length > 0) {
+          setSelectedYear(Math.max(...list));
+        } else {
+          setSelectedYear(null);
         }
       } catch (err) {
         console.error("Failed to fetch years:", err);
-        // Keep default years on error
+        setYears([]);
+        setSelectedYear(null);
+        setYearsError(
+          err instanceof Error ? err.message : "Failed to load available years"
+        );
+      } finally {
+        setYearsLoading(false);
       }
     };
     loadYears();
   }, []);
 
+  useEffect(() => {
+    if (years.length === 0) return;
+    setSelectedYear((prev) =>
+      prev !== null && years.includes(prev) ? prev : Math.max(...years)
+    );
+  }, [years]);
+
   // Fetch data based on active tab
   const fetchTabData = useCallback(
     async (showLoading = true) => {
+      if (selectedYear === null) return;
       if (activeTab === "matrix") {
         if (showLoading) setMatrix((prev) => ({ ...prev, loading: true }));
         try {
@@ -174,6 +190,8 @@ export default function StructuralPage() {
     [activeTab, selectedYear]
   );
 
+  const yearLabel = selectedYear ?? "—";
+
   // Fetch data when tab or year changes
   useEffect(() => {
     fetchTabData();
@@ -202,11 +220,11 @@ export default function StructuralPage() {
     }
   };
 
-  // Build industries list from matrix labels
+  // Build industries list from matrix labels, resolving human-readable names
   const industries =
     matrix.data?.col_labels.map((code) => ({
       code,
-      name: code, // API may provide names in the future
+      name: getSectorName(code),
     })) ?? [];
 
   // Tab configuration
@@ -224,12 +242,17 @@ export default function StructuralPage() {
           years={years}
           selected={selectedYear}
           onChange={setSelectedYear}
+          emptyLabel={
+            yearsLoading
+              ? "Loading…"
+              : yearsError ?? "No I-O data — run BEA I-O ingestion"
+          }
         />
         <Button
           variant="outline"
           size="sm"
           onClick={handleRefresh}
-          disabled={isRefreshing}
+          disabled={isRefreshing || selectedYear === null}
         >
           <RefreshCw
             className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
@@ -256,10 +279,21 @@ export default function StructuralPage() {
       {activeTab === "matrix" && (
         <Card>
           <CardHeader>
-            <CardTitle>Input-Output Coefficient Matrix ({selectedYear})</CardTitle>
+            <CardTitle>Input-Output Coefficient Matrix ({yearLabel})</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Technical coefficients from BEA summary-level Use tables. Each
+              cell A<sub>ij</sub> is direct input from supplier <em>i</em> per
+              dollar of consumer <em>j</em>&apos;s output.
+            </p>
           </CardHeader>
           <CardContent>
-            {matrix.loading ? (
+            {selectedYear === null ? (
+              <div className="flex h-[600px] items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Select a year once I-O data is available.
+                </p>
+              </div>
+            ) : matrix.loading ? (
               <div className="flex h-[600px] items-center justify-center">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
               </div>
@@ -270,6 +304,7 @@ export default function StructuralPage() {
             ) : matrix.data ? (
               <>
                 <CoefficientHeatmap
+                  key={selectedYear}
                   matrixData={matrix.data}
                   onCellClick={(row, col, value) =>
                     setDrillDown({ open: true, row, col, value })
@@ -281,6 +316,8 @@ export default function StructuralPage() {
                   rowCode={drillDown.row}
                   colCode={drillDown.col}
                   value={drillDown.value}
+                  rowLabel={resolveIoAxisLabel(matrix.data, drillDown.row, "row")}
+                  colLabel={resolveIoAxisLabel(matrix.data, drillDown.col, "col")}
                 />
               </>
             ) : (
@@ -303,7 +340,11 @@ export default function StructuralPage() {
                 <CardTitle>Configure Shock</CardTitle>
               </CardHeader>
               <CardContent>
-                {matrix.loading ? (
+                {selectedYear === null ? (
+                  <p className="text-sm text-muted-foreground">
+                    No year available.
+                  </p>
+                ) : matrix.loading ? (
                   <div className="flex h-48 items-center justify-center">
                     <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                   </div>
@@ -330,6 +371,7 @@ export default function StructuralPage() {
             <ShockResults
               results={shockResult.data}
               loading={shockResult.loading}
+              error={shockResult.error}
             />
           </div>
 
@@ -376,7 +418,7 @@ export default function StructuralPage() {
                               <TableCell className="font-mono text-sm">
                                 {sector.code}
                               </TableCell>
-                              <TableCell>{sector.name || "-"}</TableCell>
+                              <TableCell>{getSectorName(sector.code)}</TableCell>
                               <TableCell className="text-right tabular-nums">
                                 {sector.backward_linkage.toFixed(3)}
                               </TableCell>
@@ -408,12 +450,16 @@ export default function StructuralPage() {
       {activeTab === "reproduction" && (
         <Card>
           <CardHeader>
-            <CardTitle>
-              Marx&apos;s Reproduction Schema ({selectedYear})
-            </CardTitle>
+            <CardTitle>Marx&apos;s Reproduction Schema</CardTitle>
           </CardHeader>
           <CardContent>
-            {reproduction.loading ? (
+            {selectedYear === null ? (
+              <div className="flex h-[500px] items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Select a year once I-O data is available.
+                </p>
+              </div>
+            ) : reproduction.loading ? (
               <div className="flex h-[500px] items-center justify-center">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
               </div>

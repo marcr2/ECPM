@@ -53,13 +53,19 @@ def fetch_all_series(self: Any) -> dict[str, Any]:
 
 
 async def _run_pipeline() -> dict[str, Any]:
-    """Run the ingestion pipeline with a fresh session and clients.
+    """Run the ingestion pipeline with a dedicated engine.
 
-    Creates all necessary resources (session, clients, config) and
-    tears them down on completion.
+    Creates a local async engine (not the module-level singleton) to avoid
+    stale connection pool issues when multiple asyncio.run() calls happen
+    across different Celery tasks in the same worker process.
     """
+    from sqlalchemy.ext.asyncio import (
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
+
     from ecpm.config import get_settings
-    from ecpm.database import async_session
     from ecpm.ingestion.bea_client import BEAClient
     from ecpm.ingestion.fred_client import FredClient
     from ecpm.ingestion.pipeline import IngestionPipeline
@@ -68,17 +74,26 @@ async def _run_pipeline() -> dict[str, Any]:
     settings = get_settings()
     config = load_series_config()
 
+    local_engine = create_async_engine(
+        settings.database_url, pool_size=5, max_overflow=10, echo=False
+    )
+    local_session = async_sessionmaker(
+        local_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
     fred_client = FredClient(api_key=settings.fred_api_key)
     bea_client = BEAClient(api_key=settings.bea_api_key)
 
-    async with async_session() as session:
-        pipeline = IngestionPipeline(
-            session=session,
-            fred_client=fred_client,
-            bea_client=bea_client,
-            config=config,
-        )
-        result = await pipeline.ingest_all()
-        # No final commit needed - each series commits individually
+    try:
+        async with local_session() as session:
+            pipeline = IngestionPipeline(
+                session=session,
+                fred_client=fred_client,
+                bea_client=bea_client,
+                config=config,
+            )
+            result = await pipeline.ingest_all()
+    finally:
+        await local_engine.dispose()
 
     return result.to_dict()

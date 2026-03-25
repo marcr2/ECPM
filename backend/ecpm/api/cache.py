@@ -5,10 +5,13 @@ Provides endpoints to manually trigger cache refresh and view cache status.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from ecpm.auth.jwt import require_auth
+from ecpm.auth.models import TokenData
 from ecpm.cache_manager import invalidate_cache
+from ecpm.middleware.rate_limit import RATE_WRITE, limiter
 from ecpm.tasks.cache_tasks import precompute_all_indicators
 
 router = APIRouter(prefix="/api/cache", tags=["cache"])
@@ -31,7 +34,11 @@ class CacheInvalidateResponse(BaseModel):
 
 
 @router.post("/refresh", response_model=CacheRefreshResponse)
-async def refresh_cache() -> CacheRefreshResponse:
+@limiter.limit(RATE_WRITE)
+async def refresh_cache(
+    request: Request,
+    _user: TokenData = Depends(require_auth),
+) -> CacheRefreshResponse:
     """Manually trigger a full cache refresh.
 
     Computes all indicators for all methodologies and stores results to disk.
@@ -44,17 +51,20 @@ async def refresh_cache() -> CacheRefreshResponse:
             message="Cache refresh completed successfully",
             results=results,
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500,
-            detail=f"Cache refresh failed: {str(e)}",
+            detail="Cache refresh failed",
         )
 
 
 @router.post("/invalidate", response_model=CacheInvalidateResponse)
+@limiter.limit(RATE_WRITE)
 async def invalidate_all_cache(
+    request: Request,
     methodology: str | None = None,
     slug: str | None = None,
+    _user: TokenData = Depends(require_auth),
 ) -> CacheInvalidateResponse:
     """Invalidate (delete) cached files.
 

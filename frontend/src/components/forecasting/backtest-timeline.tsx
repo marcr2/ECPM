@@ -67,7 +67,8 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
     return value.slice(0, 7); // YYYY-MM
   }
 
-  const hasAnyWarning = episode.warning_12m || episode.warning_24m;
+  const hasAnyWarning = episode.warning_12m === true || episode.warning_24m === true;
+  const isInsufficient = episode.peak_value == null;
 
   return (
     <Card>
@@ -95,17 +96,25 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
             <span className="text-sm text-muted-foreground">
               {episode.start_date} to {episode.end_date}
             </span>
-            <span className="text-sm">
-              Peak: <strong>{episode.peak_value.toFixed(1)}</strong> on{" "}
-              {episode.peak_date}
-            </span>
+            {episode.peak_value != null ? (
+              <span className="text-sm">
+                Peak: <strong>{episode.peak_value.toFixed(1)}</strong> on{" "}
+                {episode.peak_date}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">
+                Insufficient data
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Badge
-              variant={episode.warning_24m ? "default" : "destructive"}
+              variant={episode.warning_24m == null ? "outline" : episode.warning_24m ? "default" : "destructive"}
               className="flex items-center gap-1"
             >
-              {episode.warning_24m ? (
+              {episode.warning_24m == null ? (
+                <span className="text-muted-foreground">—</span>
+              ) : episode.warning_24m ? (
                 <CheckCircle className="h-3 w-3" />
               ) : (
                 <XCircle className="h-3 w-3" />
@@ -113,10 +122,12 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
               24mo
             </Badge>
             <Badge
-              variant={episode.warning_12m ? "default" : "destructive"}
+              variant={episode.warning_12m == null ? "outline" : episode.warning_12m ? "default" : "destructive"}
               className="flex items-center gap-1"
             >
-              {episode.warning_12m ? (
+              {episode.warning_12m == null ? (
+                <span className="text-muted-foreground">—</span>
+              ) : episode.warning_12m ? (
                 <CheckCircle className="h-3 w-3" />
               ) : (
                 <XCircle className="h-3 w-3" />
@@ -218,12 +229,16 @@ export function BacktestTimeline({ backtests }: BacktestTimelineProps) {
 
         {/* Summary */}
         <div className="rounded-lg bg-muted/50 p-4 text-sm">
-          {hasAnyWarning ? (
+          {isInsufficient ? (
+            <p className="text-muted-foreground italic">
+              Insufficient historical data to evaluate this episode (data starts after episode period).
+            </p>
+          ) : hasAnyWarning ? (
             <p className="text-emerald-400">
               Early warning signal detected{" "}
-              {episode.warning_24m && episode.warning_12m
+              {episode.warning_24m === true && episode.warning_12m === true
                 ? "at both 24 and 12 months"
-                : episode.warning_24m
+                : episode.warning_24m === true
                 ? "at 24 months"
                 : "at 12 months"}{" "}
               before the crisis peak.

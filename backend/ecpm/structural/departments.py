@@ -183,28 +183,34 @@ def compute_reproduction_flows(
     value_added: np.ndarray,
     classification: dict[str, str],
     sector_codes: list[str],
+    *,
+    is_dollar_flows: bool = False,
 ) -> dict:
     """Compute full reproduction schema flows.
 
     Combines aggregation with c/v/s decomposition to produce
     Department I and II values for proportionality analysis.
 
-    c (constant capital) = intermediate inputs consumed
+    c (constant capital) = intermediate inputs consumed (dollar value)
     v (variable capital) = compensation of employees (approximated)
     s (surplus value) = gross operating surplus (approximated)
 
-    Note: Proper c/v/s decomposition requires value-added data from
-    BEA GDPbyIndustry dataset. This implementation uses simplified
-    approximations based on I-O structure.
+    When ``is_dollar_flows`` is True the *use_matrix* contains the raw
+    BEA Use table in millions of dollars and ``value_added`` must also
+    be expressed in millions of dollars.  When False the matrix is the
+    technical-coefficient matrix (dimensionless) and values will be
+    labelled accordingly.
 
     Args:
-        use_matrix: n x n intermediate use matrix.
-        value_added: n-vector of value added by industry.
+        use_matrix: n x n intermediate use matrix (dollar flows or coefficients).
+        value_added: n-vector of value added by industry (same unit as use_matrix).
         classification: Dict mapping sector codes to "Dept_I" or "Dept_II".
         sector_codes: List of sector codes.
+        is_dollar_flows: Whether use_matrix contains dollar-flow data.
 
     Returns:
-        Dict with dept_i, dept_ii c/v/s values, flows, and proportionality.
+        Dict with ``matrix_kind`` (``"dollar_flows"`` or ``"coefficients"``),
+        dept_i / dept_ii c/v/s values, flows, and proportionality.
     """
     n = use_matrix.shape[0]
 
@@ -218,22 +224,20 @@ def compute_reproduction_flows(
     flows = aggregate_by_department(use_matrix, classification, sector_codes)
 
     # c (constant capital) = intermediate inputs consumed by each department
-    # Sum of columns for industries in each department
-    dept_i_c = use_matrix[:, dept_i_mask].sum()
-    dept_ii_c = use_matrix[:, dept_ii_mask].sum()
+    dept_i_c = float(use_matrix[:, dept_i_mask].sum())
+    dept_ii_c = float(use_matrix[:, dept_ii_mask].sum())
 
-    # Approximate v and s from value added
-    # In practice, v ~ 60% of value added, s ~ 40% (rough approximation)
-    # Proper decomposition requires compensation/surplus data
-    dept_i_va = value_added[dept_i_mask].sum() if len(value_added) >= n else 0
-    dept_ii_va = value_added[dept_ii_mask].sum() if len(value_added) >= n else 0
+    # Approximate v and s from value added (60/40 labour/surplus split)
+    dept_i_va = float(value_added[dept_i_mask].sum()) if len(value_added) >= n else 0.0
+    dept_ii_va = float(value_added[dept_ii_mask].sum()) if len(value_added) >= n else 0.0
 
-    # Simple approximation: v = 0.6 * VA, s = 0.4 * VA
     labor_share = 0.6
     dept_i_v = labor_share * dept_i_va
     dept_i_s = (1 - labor_share) * dept_i_va
     dept_ii_v = labor_share * dept_ii_va
     dept_ii_s = (1 - labor_share) * dept_ii_va
+
+    matrix_kind = "dollar_flows" if is_dollar_flows else "coefficients"
 
     # Check proportionality
     proportionality = check_proportionality(
@@ -241,15 +245,16 @@ def compute_reproduction_flows(
     )
 
     return {
+        "matrix_kind": matrix_kind,
         "dept_i": {
-            "c": float(dept_i_c),
-            "v": float(dept_i_v),
-            "s": float(dept_i_s),
+            "c": dept_i_c,
+            "v": dept_i_v,
+            "s": dept_i_s,
         },
         "dept_ii": {
-            "c": float(dept_ii_c),
-            "v": float(dept_ii_v),
-            "s": float(dept_ii_s),
+            "c": dept_ii_c,
+            "v": dept_ii_v,
+            "s": dept_ii_s,
         },
         "flows": flows.tolist(),
         "proportionality": proportionality,

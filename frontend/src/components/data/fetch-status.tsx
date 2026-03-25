@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import type { FetchStatus } from "@/lib/api";
-import { triggerFetch } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import {
   Card,
@@ -10,55 +8,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { CheckCircle, AlertCircle, Clock } from "lucide-react";
 
 interface FetchStatusCardProps {
   status: FetchStatus | null;
   isLoading: boolean;
-  onRefresh: () => void;
 }
 
 export function FetchStatusCard({
   status,
   isLoading,
-  onRefresh,
 }: FetchStatusCardProps) {
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  const handleFetch = async () => {
-    setIsFetching(true);
-    setFetchError(null);
-    try {
-      await triggerFetch();
-      // Wait a moment then refresh status
-      setTimeout(onRefresh, 2000);
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Fetch failed");
-    } finally {
-      setIsFetching(false);
-    }
-  };
-
   return (
     <Card className="border-border bg-card">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleFetch}
-            disabled={isFetching || isLoading}
-            className="h-7 text-xs"
-          >
-            <RefreshCw
-              className={`mr-1.5 h-3 w-3 ${isFetching ? "animate-spin" : ""}`}
-            />
-            {isFetching ? "Fetching..." : "Fetch Now"}
-          </Button>
-        </div>
+        <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !status ? (
@@ -112,10 +76,6 @@ export function FetchStatusCard({
                 </span>
               )}
             </div>
-
-            {fetchError && (
-              <p className="mt-2 text-xs text-destructive">{fetchError}</p>
-            )}
           </>
         )}
       </CardContent>
@@ -123,7 +83,6 @@ export function FetchStatusCard({
   );
 }
 
-// Small helper -- inline icon since we only use it here
 function Database({ className }: { className?: string }) {
   return (
     <svg

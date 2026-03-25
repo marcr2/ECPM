@@ -1,11 +1,33 @@
 """Structured logging configuration using structlog."""
 
 import logging
+import re
 import sys
 
 import structlog
 
 from ecpm.config import get_settings
+
+_SENSITIVE_PATTERNS = [
+    (re.compile(r"(password|passwd|pwd)\s*[=:]\s*\S+", re.IGNORECASE), r"\1=***REDACTED***"),
+    (re.compile(r"(api[_-]?key|secret[_-]?key|token)\s*[=:]\s*\S+", re.IGNORECASE), r"\1=***REDACTED***"),
+    (re.compile(r"(Bearer\s+)\S+", re.IGNORECASE), r"\1***REDACTED***"),
+    (re.compile(r"postgresql(\+\w+)?://[^@]+@"), "postgresql\\1://***:***@"),
+    (re.compile(r"redis://:[^@]+@"), "redis://:***@"),
+]
+
+
+def _redact_sensitive_data(
+    _logger: logging.Logger, _method: str, event_dict: dict
+) -> dict:
+    """Structlog processor that redacts passwords, keys, and tokens from log output."""
+    for key, value in list(event_dict.items()):
+        if not isinstance(value, str):
+            continue
+        for pattern, replacement in _SENSITIVE_PATTERNS:
+            value = pattern.sub(replacement, value)
+        event_dict[key] = value
+    return event_dict
 
 
 def setup_logging() -> None:
@@ -30,6 +52,7 @@ def setup_logging() -> None:
         ),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.UnicodeDecoder(),
+        _redact_sensitive_data,
     ]
 
     if settings.log_level.upper() == "DEBUG":

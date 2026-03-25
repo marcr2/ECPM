@@ -4,8 +4,17 @@ Provides async entry points for computing individual and summary indicators.
 Fetches raw series data from the database, builds a data dict, calls the
 appropriate mapper method, and returns computed pd.Series results.
 
-Results are cached in Redis with key pattern `indicators:{slug}:{methodology}`
-and TTL of 3600s (1 hour).
+Caching strategy (two layers):
+  1. **Disk cache** (primary for indicator overview and detail endpoints):
+     JSON files under ``/app/cache/indicators/{methodology}/`` with 24-hour
+     TTL, managed by ``cache_manager.py``.  The API endpoints call
+     ``compute_indicator`` with ``redis=None``, so the Redis layer here is
+     bypassed on the hot path.
+  2. **Redis** (secondary): used by the methodology-docs listing, compare
+     endpoint, and the ``compute_indicator`` internal path when a Redis
+     client is explicitly passed.  Keys follow the ``ecpm:api:…`` prefix
+     via ``cache.build_cache_key``, with a 1-hour TTL for data and
+     24-hour TTL for methodology docs.
 """
 
 from __future__ import annotations
@@ -36,7 +45,7 @@ _FRED_TO_KEY: dict[str, str] = {
     "BEA:T11200:L1": "national_income",  # BEA NIPA Table 1.12, Line 1 (in millions)
     "A576RC1": "compensation",  # FRED (in billions)
     "K1PTOTL1ES000": "net_fixed_assets_current",  # FRED (in millions)
-    "K1NTOTL1HI000": "net_fixed_assets_historical",  # FRED
+    "BEA:FAAt203:L1": "net_fixed_assets_historical",  # BEA Fixed Assets Table 2.3 (in millions)
 }
 
 # Per-indicator financial FRED-to-key mappings.
@@ -54,7 +63,7 @@ _FINANCIAL_INDICATOR_MAPPINGS: dict[str, dict[str, str]] = {
         "GDP": "nominal_gdp",
     },
     IndicatorSlug.financial_real_ratio: {
-        "BOGZ1FL073164003Q": "financial_assets",
+        "TFAABSNNCB": "financial_assets",
         "K1PTOTL1ES000": "real_assets",
     },
     IndicatorSlug.debt_service_ratio: {
@@ -74,7 +83,7 @@ for _indicator_slug, _mapping in _FINANCIAL_INDICATOR_MAPPINGS.items():
 _FINANCIAL_SERIES: dict[str, list[str]] = {
     IndicatorSlug.productivity_wage_gap: ["OPHNFB", "PRS85006092"],
     IndicatorSlug.credit_gdp_gap: ["BOGZ1FL073164003Q", "GDP"],
-    IndicatorSlug.financial_real_ratio: ["BOGZ1FL073164003Q", "K1PTOTL1ES000"],
+    IndicatorSlug.financial_real_ratio: ["TFAABSNNCB", "K1PTOTL1ES000"],
     IndicatorSlug.debt_service_ratio: ["BOGZ1FU106130001Q", "A445RC1Q027SBEA"],
 }
 

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import pytest
 
@@ -48,6 +50,7 @@ pytestmark = pytest.mark.skipif(
 
 # Core series used by Shaikh/Tonak and Kliman mappers
 _CORE_SERIES = {
+    "BEA:T11200:L1": ("National Income (NIPA T11200 L1)", "A", "BEA"),
     "A053RC1Q027SBEA": ("National Income", "Q", "FRED"),
     "A576RC1": ("Compensation of Employees", "Q", "FRED"),
     "K1NTOTL1SI000": ("Current-Cost Net Stock of Private Fixed Assets", "A", "FRED"),
@@ -58,9 +61,11 @@ _CORE_SERIES = {
 _FINANCIAL_SERIES = {
     "OPHNFB": ("Output Per Hour, Nonfarm Business", "Q", "FRED"),
     "PRS85006092": ("Real Compensation Per Hour", "Q", "FRED"),
-    "BOGZ1FL073164003Q": ("Nonfinancial Corporate Debt", "Q", "FRED"),
+    "BOGZ1FL073164003Q": ("Nonfinancial Corporate Debt Securities", "Q", "FRED"),
+    "TFAABSNNCB": ("Nonfinancial Corporate Total Financial Assets", "Q", "FRED"),
+    "K1PTOTL1ES000": ("Current-Cost Net Stock of Private Fixed Assets", "A", "FRED"),
     "GDP": ("Gross Domestic Product", "Q", "FRED"),
-    "BOGZ1FA096130001Q": ("Interest Payments, Nonfinancial Corporate", "Q", "FRED"),
+    "BOGZ1FU106130001Q": ("Interest and Miscellaneous Payments, NFCB", "Q", "FRED"),
     "A445RC1Q027SBEA": ("Net Operating Surplus", "Q", "FRED"),
 }
 
@@ -110,6 +115,13 @@ def _seed_database_sync(engine):
 
             # Known values matching test_indicators.py style
             series_values = {
+                "BEA:T11200:L1": [
+                    900_000.0,
+                    950_000.0,
+                    1_000_000.0,
+                    1_100_000.0,
+                    1_200_000.0,
+                ],
                 "A053RC1Q027SBEA": [900.0, 950.0, 1000.0, 1100.0, 1200.0],
                 "A576RC1": [540.0, 570.0, 600.0, 650.0, 700.0],
                 "K1NTOTL1SI000": [2800.0, 2900.0, 3000.0, 3200.0, 3400.0],
@@ -117,8 +129,10 @@ def _seed_database_sync(engine):
                 "OPHNFB": [95.0, 97.5, 100.0, 105.0, 110.0],
                 "PRS85006092": [98.0, 99.0, 100.0, 101.0, 102.0],
                 "BOGZ1FL073164003Q": [4500.0, 4700.0, 5000.0, 5300.0, 5600.0],
+                "TFAABSNNCB": [28000.0, 29000.0, 30000.0, 32000.0, 34000.0],
+                "K1PTOTL1ES000": [55000.0, 57000.0, 60000.0, 62000.0, 65000.0],
                 "GDP": [19000.0, 19500.0, 20000.0, 20500.0, 21000.0],
-                "BOGZ1FA096130001Q": [85.0, 90.0, 100.0, 110.0, 120.0],
+                "BOGZ1FU106130001Q": [85.0, 90.0, 100.0, 110.0, 120.0],
                 "A445RC1Q027SBEA": [450.0, 475.0, 500.0, 550.0, 600.0],
             }
 
@@ -143,7 +157,7 @@ def _seed_database_sync(engine):
 
 
 @pytest.fixture
-def sync_client():
+def sync_client(monkeypatch):
     """Provide a synchronous TestClient backed by in-memory SQLite with seeded data.
 
     Overrides get_db and lifespan, seeds all required FRED series for indicator
@@ -156,6 +170,11 @@ def sync_client():
 
     if not _HAS_SQLALCHEMY:
         pytest.skip("sqlalchemy not installed")
+
+    import ecpm.cache_manager as cache_manager
+
+    _cache_tmp = Path(tempfile.mkdtemp()) / "indicators"
+    monkeypatch.setattr(cache_manager, "CACHE_DIR", _cache_tmp)
 
     # Register mappers (needed for computation)
     MethodologyRegistry.reset()
@@ -258,6 +277,16 @@ class TestIndicatorDetail:
         data = response.json()
         assert data["methodology"] == "shaikh-tonak"
 
+    def test_indicator_detail_kliman_returns_data(self, sync_client) -> None:
+        """Kliman path maps FRED national income and computes successfully."""
+        response = sync_client.get(
+            "/api/indicators/rate_of_profit?methodology=kliman"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["methodology"] == "kliman"
+        assert len(data["data"]) > 0
+
     def test_indicator_detail_data_has_date_value(self, sync_client) -> None:
         """Each data point has date and value."""
         response = sync_client.get("/api/indicators/rate_of_profit")
@@ -304,7 +333,7 @@ class TestMethodologyDocs:
 
         data = response.json()
         assert data["methodology_slug"] == "shaikh-tonak"
-        assert len(data["indicators"]) == 4  # 4 core indicators
+        assert len(data["indicators"]) == 8
 
 
 # ---------------------------------------------------------------------------

@@ -16,10 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ShockResultResponse } from "@/lib/structural-api";
+import { getSectorName } from "@/lib/bea-sector-names";
 
 interface ShockResultsProps {
   results: ShockResultResponse | null;
   loading?: boolean;
+  error?: string | null;
 }
 
 /**
@@ -31,7 +33,7 @@ interface ShockResultsProps {
  * - Color: red for negative, green for positive
  * - Stats: total impact, weakest link badge
  */
-export function ShockResults({ results, loading = false }: ShockResultsProps) {
+export function ShockResults({ results, loading = false, error }: ShockResultsProps) {
   const [showAll, setShowAll] = useState(false);
 
   // Sort impacts by absolute magnitude and prepare chart data
@@ -65,6 +67,21 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
           <div className="space-y-4">
             <Skeleton className="h-8 w-48" />
             <Skeleton className="h-[350px] w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Simulation Results</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex h-[350px] items-center justify-center">
+            <p className="text-sm text-destructive">{error}</p>
           </div>
         </CardContent>
       </Card>
@@ -112,7 +129,7 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
             {/* Weakest link badge */}
             {weakestLink && (
               <Badge variant="destructive" className="text-xs">
-                Weakest: {weakestLink.code} ({(weakestLink.impact * 100).toFixed(1)}%)
+                Weakest: {getSectorName(weakestLink.code)} ({(weakestLink.impact * 100).toFixed(1)}%)
               </Badge>
             )}
           </div>
@@ -138,7 +155,7 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
           <BarChart
             data={chartData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
           >
             <XAxis
               type="number"
@@ -150,10 +167,14 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
             <YAxis
               type="category"
               dataKey="code"
-              width={70}
+              width={180}
               stroke="var(--muted-foreground)"
               fontSize={10}
               tickLine={false}
+              tickFormatter={(code: string) => {
+                const name = getSectorName(code);
+                return name.length > 26 ? name.slice(0, 24) + "\u2026" : name;
+              }}
             />
             <Tooltip
               cursor={{ fill: "oklch(var(--muted) / 0.3)" }}
@@ -167,11 +188,15 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
               content={({ active, payload }) => {
                 if (!active || !payload || !payload[0]) return null;
                 const item = payload[0].payload as { sector: string; code: string; impact: number };
+                const name = getSectorName(item.code);
                 return (
                   <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-lg">
-                    <p className="font-medium">{item.sector || item.code}</p>
-                    <p className="text-muted-foreground">
-                      Impact: {(item.impact * 100).toFixed(2)}%
+                    <p className="font-medium">{name}</p>
+                    {name !== item.code && (
+                      <p className="font-mono text-xs text-muted-foreground">{item.code}</p>
+                    )}
+                    <p className={`mt-1 font-bold tabular-nums ${item.impact >= 0 ? "text-green-500" : "text-red-500"}`}>
+                      Impact: {item.impact >= 0 ? "+" : ""}{(item.impact * 100).toFixed(2)}%
                     </p>
                   </div>
                 );
@@ -198,7 +223,9 @@ export function ShockResults({ results, loading = false }: ShockResultsProps) {
           <span className="text-xs text-muted-foreground">
             Shocked sectors:{" "}
             <span className="font-medium text-foreground">
-              {results.shocked_sectors.join(", ")}
+              {results.shocked_sectors
+                .map((code) => getSectorName(code))
+                .join(", ")}
             </span>
           </span>
         </div>

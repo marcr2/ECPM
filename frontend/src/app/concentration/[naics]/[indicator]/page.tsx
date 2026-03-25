@@ -33,6 +33,7 @@ export default function IndustryIndicatorPage({ params }: PageProps) {
 
   const [history, setHistory] = useState<ConcentrationHistoryResponse | null>(null);
   const [correlation, setCorrelation] = useState<CorrelationInfo | null>(null);
+  const [indicatorData, setIndicatorData] = useState<{ year: number; value: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +57,6 @@ export default function IndustryIndicatorPage({ params }: PageProps) {
       if (matchedCorr) {
         setCorrelation(matchedCorr);
       } else {
-        // Create placeholder if not found
         setCorrelation({
           indicator_slug: indicator,
           indicator_name: INDICATOR_NAMES[indicator] || indicator,
@@ -65,6 +65,36 @@ export default function IndustryIndicatorPage({ params }: PageProps) {
           lag_months: 0,
           relationship: "none",
         });
+      }
+
+      // Fetch real indicator time series from the indicators API
+      const apiSlug = indicator.replace(/-/g, "_");
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      try {
+        const indRes = await fetch(
+          `${apiBase}/api/indicators/${apiSlug}?methodology=shaikh-tonak`,
+          { headers: { Accept: "application/json" } }
+        );
+        if (indRes.ok) {
+          const indJson = await indRes.json();
+          const points: { date: string; value: number }[] = indJson.data ?? [];
+          // Aggregate to annual averages aligned with concentration years
+          const yearMap = new Map<number, { sum: number; count: number }>();
+          for (const pt of points) {
+            if (pt.value == null) continue;
+            const yr = new Date(pt.date).getFullYear();
+            const entry = yearMap.get(yr) ?? { sum: 0, count: 0 };
+            entry.sum += pt.value;
+            entry.count += 1;
+            yearMap.set(yr, entry);
+          }
+          const annualData = Array.from(yearMap.entries())
+            .map(([yr, { sum, count }]) => ({ year: yr, value: sum / count }))
+            .sort((a, b) => a.year - b.year);
+          setIndicatorData(annualData);
+        }
+      } catch {
+        // Non-fatal: indicator data may not be available
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -76,16 +106,6 @@ export default function IndustryIndicatorPage({ params }: PageProps) {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  // Generate placeholder indicator data
-  // In production, this would fetch from the indicators API
-  const generateIndicatorData = () => {
-    if (!history) return [];
-    return history.data.map((d) => ({
-      year: d.year,
-      value: 0.15 + Math.random() * 0.1, // Placeholder
-    }));
-  };
 
   if (error) {
     return (
@@ -146,7 +166,7 @@ export default function IndustryIndicatorPage({ params }: PageProps) {
           ) : (
             <IndustryIndicatorChart
               concentrationData={history.data}
-              indicatorData={generateIndicatorData()}
+              indicatorData={indicatorData}
               correlation={correlation}
             />
           )}

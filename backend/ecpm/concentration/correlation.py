@@ -140,6 +140,89 @@ def compute_lead_lag_correlation(
     }
 
 
+def _indicator_values_by_calendar_year(ind_series: pd.Series) -> dict[int, float]:
+    """Map calendar year -> last observed annual indicator value for that year."""
+    out: dict[int, float] = {}
+    for ts, val in ind_series.items():
+        if pd.isna(val):
+            continue
+        y = int(pd.Timestamp(ts).year)
+        out[y] = float(val)
+    return out
+
+
+def _merge_concentration_with_indicator(
+    conc_df: pd.DataFrame,
+    conc_col: str,
+    ind_series: pd.Series,
+) -> pd.DataFrame:
+    """Inner-join concentration rows to indicator values by calendar year."""
+    if conc_df.empty or ind_series.empty:
+        return pd.DataFrame(columns=["year", "concentration", "indicator"])
+
+    by_year = _indicator_values_by_calendar_year(ind_series)
+    m = conc_df[["year", conc_col]].dropna().copy()
+    m["year"] = m["year"].astype(int)
+    m["indicator"] = m["year"].map(by_year)
+    m = m.dropna(subset=["indicator"])
+    m = m.rename(columns={conc_col: "concentration"})
+    return m.sort_values("year").reset_index(drop=True)
+
+
+def _annual_observation_lag_correlation(
+    merged: pd.DataFrame,
+    max_lag_obs: int = 3,
+    min_obs: int = 4,
+) -> tuple[float, int, int]:
+    """Lead/lag correlation on aligned annual panels (lags = observation shifts).
+
+    For lag k >= 0: correlate concentration[:-k] with indicator[k:] so positive k
+    tests whether concentration leads the indicator by k survey waves.
+
+    Returns:
+        (peak_corr, peak_lag_observations, n_pairs_at_peak)
+    """
+    if len(merged) < min_obs:
+        return 0.0, 0, len(merged)
+
+    conc = merged["concentration"].astype(float)
+    ind = merged["indicator"].astype(float)
+
+    best_r = 0.0
+    best_lag = 0
+    best_n = 0
+
+    for lag in range(0, max_lag_obs + 1):
+        if lag == 0:
+            c_seg, i_seg = conc, ind
+        else:
+            c_seg, i_seg = conc.iloc[:-lag], ind.iloc[lag:]
+        n = len(c_seg)
+        if n < min_obs:
+            continue
+        r = float(c_seg.corr(i_seg))
+        if np.isnan(r):
+            continue
+        if abs(r) > abs(best_r):
+            best_r = r
+            best_lag = lag
+            best_n = n
+
+    return best_r, best_lag, best_n
+
+
+def _concentration_panel_confidence(correlation: float, n_observations: int) -> float:
+    """Confidence for short annual panels (e.g. Census every 5 years).
+
+    Scales with |r| and sample size without requiring n >= 10 like monthly logic.
+    """
+    if n_observations < 4 or np.isnan(correlation):
+        return 0.0
+    return float(
+        min(100.0, abs(correlation) * 100.0 * min(1.0, n_observations / 5.0))
+    )
+
+
 def compute_confidence_score(
     correlation: float,
     n_observations: int,
@@ -233,10 +316,6 @@ def map_concentration_to_indicators(
 
     # Use CR4 as default concentration metric
     conc_col = "cr4" if "cr4" in conc_df.columns else "hhi"
-    concentration_series = pd.Series(
-        conc_df[conc_col].values,
-        index=pd.to_datetime(conc_df["year"].astype(str), format="%Y"),
-    )
 
     for slug in indicator_slugs:
         ind_series = indicator_data.get(slug, pd.Series(dtype=float))
@@ -252,29 +331,12 @@ def map_concentration_to_indicators(
             })
             continue
 
-        # Compute lead-lag correlation
-        lead_lag = compute_lead_lag_correlation(
-            concentration_series,
-            ind_series,
-            max_lag_months=24,
-        )
+        merged = _merge_concentration_with_indicator(conc_df, conc_col, ind_series)
+        correlation, lag_obs, n_obs = _annual_observation_lag_correlation(merged)
+        # API field is lag_months; lags are in observation steps (~economic census waves)
+        lag_months = int(lag_obs * 12)
 
-        correlation = lead_lag["peak_corr"]
-        lag_months = lead_lag["peak_lag"]
-
-        # Compute rolling correlation for r_squared estimate
-        rolling = compute_rolling_correlation(
-            concentration_series,
-            ind_series,
-            window_months=12,
-        )
-        r_squared = rolling.var() if len(rolling) > 0 else 0.0
-
-        # Count observations
-        n_obs = min(len(concentration_series), len(ind_series))
-
-        # Compute confidence
-        confidence = compute_confidence_score(correlation, n_obs, r_squared)
+        confidence = _concentration_panel_confidence(correlation, n_obs)
 
         # Determine relationship
         if abs(correlation) < 0.1:

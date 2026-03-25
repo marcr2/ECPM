@@ -82,6 +82,8 @@ fred:
   - id: K1N31GENI1ES000
     name: Current-Cost Net Stock of Private Nonresidential Fixed Assets
     category: capital
+  # K1NTOTL1HI000 removed: not available on FRED.
+  # Historical-cost net stock is ingested from BEA FAAt203 instead.
   - id: Y033RC1Q027SBEA
     name: Consumption of Fixed Capital
     category: capital
@@ -214,6 +216,9 @@ fred:
   - id: BOGZ1FL073164003Q
     name: Nonfinancial Corporate Business Debt Securities Liability
     category: financial
+  - id: TFAABSNNCB
+    name: Nonfinancial Corporate Business Total Financial Assets
+    category: financial
   - id: BOGZ1FU106130001Q
     name: Nonfinancial Corporate Business Interest Payments
     category: financial
@@ -269,4 +274,8 @@ bea:
     # Fixed assets and consumer durable goods
     - table: FAAt101
       name: Current-Cost Net Stock of Fixed Assets and Consumer Durable Goods
+      frequency: A
+    # Historical-cost net stock (Kliman TSSI methodology)
+    - table: FAAt203
+      name: Historical-Cost Net Stock of Private Fixed Assets by Type
       frequency: A

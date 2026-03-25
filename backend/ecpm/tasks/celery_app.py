@@ -53,6 +53,14 @@ celery_app.conf.beat_schedule = {
             minute=settings.fetch_schedule_minute + 10,  # 10 min after data refresh
         ),
     },
+    "weekly-edgar-concentration": {
+        "task": "ecpm.tasks.edgar_tasks.refresh_edgar_concentration",
+        "schedule": crontab(
+            hour=2,
+            minute=0,
+            day_of_week="sunday",
+        ),
+    },
 }
 
 # Auto-discover tasks in the tasks package

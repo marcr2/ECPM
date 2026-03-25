@@ -14,6 +14,7 @@ import { ConcentrationOverview } from "@/components/concentration/concentration-
 import { IndustryRankingBars } from "@/components/concentration/industry-ranking-bars";
 import { CorrelationHeatmap } from "@/components/concentration/correlation-heatmap";
 import { ConcentrationCard } from "@/components/concentration/concentration-card";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type SortBy = "cr4" | "hhi" | "trend";
@@ -36,7 +37,7 @@ export default function ConcentrationPage() {
       const [overviewData, industriesData, correlationsData] = await Promise.all([
         fetchOverview(),
         fetchIndustries(),
-        fetchTopCorrelations(50),
+        fetchTopCorrelations(25),
       ]);
 
       setOverview(overviewData);
@@ -56,6 +57,12 @@ export default function ConcentrationPage() {
     const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, [loadData]);
+
+  const industryOptions = industries.map((ind) => ({
+    value: ind.naics,
+    label: ind.name,
+    detail: ind.naics,
+  }));
 
   // Navigation handlers
   const handleIndustrySelect = (naics: string) => {
@@ -86,30 +93,50 @@ export default function ConcentrationPage() {
   return (
     <div className="space-y-6 p-6">
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Corporate Concentration Analysis
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Market concentration metrics and crisis indicator correlations by industry
-          </p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              Corporate Concentration Analysis
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Market concentration metrics and crisis indicator correlations by industry
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Sort by:</span>
+            {(["cr4", "hhi", "trend"] as const).map((option) => (
+              <button
+                key={option}
+                onClick={() => setSortBy(option)}
+                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                  sortBy === option
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {option.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Sort by:</span>
-          {(["cr4", "hhi", "trend"] as const).map((option) => (
-            <button
-              key={option}
-              onClick={() => setSortBy(option)}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                sortBy === option
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {option.toUpperCase()}
-            </button>
-          ))}
+
+        {/* Industry search */}
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+            Find industry:
+          </label>
+          <SearchableSelect
+            options={industryOptions}
+            value=""
+            onChange={(naics) => {
+              if (naics) handleIndustrySelect(naics);
+            }}
+            placeholder="Search by name or NAICS code…"
+            aria-label="Search industries"
+            className="w-full max-w-sm"
+            disabled={loading || industries.length === 0}
+          />
         </div>
       </div>
 
@@ -157,7 +184,7 @@ export default function ConcentrationPage() {
           ) : (
             <CorrelationHeatmap
               correlations={correlations}
-              minConfidence={50}
+              minConfidence={25}
               onCellClick={handleCellClick}
             />
           )}

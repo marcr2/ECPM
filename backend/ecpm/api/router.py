@@ -9,6 +9,7 @@ router (before dynamic {slug} routes) to avoid route ordering conflicts.
 
 from fastapi import APIRouter
 
+from ecpm.api.auth import router as auth_router
 from ecpm.api.cache import router as cache_router
 from ecpm.api.concentration import router as concentration_router
 from ecpm.api.data import router as data_router
@@ -19,6 +20,7 @@ from ecpm.api.structural import router as structural_router
 
 api_router = APIRouter()
 
+api_router.include_router(auth_router)
 api_router.include_router(data_router)
 api_router.include_router(status_router)
 api_router.include_router(indicators_router)

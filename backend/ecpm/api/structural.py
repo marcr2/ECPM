@@ -17,13 +17,15 @@ from typing import Optional
 
 import numpy as np
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ecpm.middleware.rate_limit import RATE_READ, RATE_WRITE, limiter
+
 from ecpm.cache import build_cache_key, cache_get, cache_set
 from ecpm.database import get_db
-from ecpm.models.io_table import IOCell, IOMetadata
+from ecpm.models.io_table import IOCell
 from ecpm.schemas.structural import (
     CriticalSector,
     CriticalSectorsResponse,
@@ -73,7 +75,7 @@ async def _get_matrix_from_db(
     year: int,
     table_type: str,
     db: AsyncSession,
-) -> tuple[np.ndarray, list[str], list[str]] | None:
+) -> tuple[np.ndarray, list[str], list[str], list[str], list[str]] | None:
     """Load matrix from database.
 
     Args:
@@ -82,7 +84,8 @@ async def _get_matrix_from_db(
         db: Database session.
 
     Returns:
-        Tuple of (matrix, row_labels, col_labels) or None if not found.
+        Tuple of (matrix, row_labels, col_labels, row_display, col_display)
+        or None if not found. Display lists use BEA descriptions when stored.
     """
     # Query cells for this year and table type
     stmt = select(IOCell).where(
@@ -96,8 +99,21 @@ async def _get_matrix_from_db(
         return None
 
     # Get unique row and column codes
-    row_codes = sorted(set(c.row_code for c in cells))
-    col_codes = sorted(set(c.col_code for c in cells))
+    row_codes = sorted(set(str(c.row_code) for c in cells))
+    col_codes = sorted(set(str(c.col_code) for c in cells))
+
+    row_desc_first: dict[str, str] = {}
+    col_desc_first: dict[str, str] = {}
+    for cell in cells:
+        rc = str(cell.row_code)
+        cc = str(cell.col_code)
+        if cell.row_description and rc not in row_desc_first:
+            row_desc_first[rc] = str(cell.row_description).strip()
+        if cell.col_description and cc not in col_desc_first:
+            col_desc_first[cc] = str(cell.col_description).strip()
+
+    row_display = [row_desc_first.get(r, r) for r in row_codes]
+    col_display = [col_desc_first.get(c, c) for c in col_codes]
 
     # Build matrix
     n_rows = len(row_codes)
@@ -108,20 +124,164 @@ async def _get_matrix_from_db(
     col_idx = {code: i for i, code in enumerate(col_codes)}
 
     for cell in cells:
-        i = row_idx.get(cell.row_code)
-        j = col_idx.get(cell.col_code)
+        rc = str(cell.row_code)
+        cc = str(cell.col_code)
+        i = row_idx.get(rc)
+        j = col_idx.get(cc)
         if i is not None and j is not None:
             matrix[i, j] = cell.value
 
-    return matrix, row_codes, col_codes
+    return matrix, row_codes, col_codes, row_display, col_display
 
 
 async def _get_available_years(db: AsyncSession) -> list[int]:
-    """Get list of years with I-O data in database."""
-    stmt = select(IOMetadata.year).distinct().order_by(IOMetadata.year.desc())
+    """Years that have stored coefficient matrix cells (same source as matrix/shock/critical)."""
+    stmt = (
+        select(IOCell.year)
+        .where(IOCell.table_type == "coefficients")
+        .distinct()
+        .order_by(IOCell.year.desc())
+    )
     result = await db.execute(stmt)
-    years = [row[0] for row in result.fetchall()]
-    return years
+    return [row[0] for row in result.fetchall()]
+
+
+def _square_matrix(
+    matrix: np.ndarray,
+    row_labels: list[str],
+    col_labels: list[str],
+) -> tuple[np.ndarray, list[str]]:
+    """Extract the square submatrix using codes common to both rows and cols.
+
+    BEA Use tables are non-square (e.g., 80 commodity rows x 92 industry cols).
+    Leontief inverse requires a square matrix, so we intersect row/col codes.
+    """
+    common = [c for c in row_labels if c in set(col_labels)]
+    if not common:
+        return matrix, row_labels
+
+    row_idx = {c: i for i, c in enumerate(row_labels)}
+    col_idx = {c: i for i, c in enumerate(col_labels)}
+
+    ri = [row_idx[c] for c in common]
+    ci = [col_idx[c] for c in common]
+
+    return matrix[np.ix_(ri, ci)], common
+
+
+def _axis_display_for_common(
+    common: list[str],
+    ordered_codes: list[str],
+    axis_display: list[str],
+) -> list[str]:
+    """Reorder per-axis display strings to match ``common`` (square submatrix)."""
+    idx = {c: i for i, c in enumerate(ordered_codes)}
+    out: list[str] = []
+    for code in common:
+        i = idx.get(code)
+        if i is None or i >= len(axis_display):
+            out.append(code)
+        else:
+            out.append(axis_display[i])
+    return out
+
+
+def _looks_like_coefficient_matrix(matrix: np.ndarray) -> bool:
+    """Return True if values look like a technical-coefficient matrix, not dollar flows.
+
+    BEA summary Use tables in millions of dollars have many cells well above 1.
+    Coefficients are bounded (typically well below 2 per cell). Mis-labeled
+    coefficient data stored as ``table_type="use"`` would otherwise be treated
+    as dollars and confuse c vs v/s units.
+    """
+    if matrix.size == 0:
+        return True
+    return bool(np.nanmax(np.abs(matrix)) <= 2.0 + 1e-9)
+
+
+async def _load_value_added(
+    year: int,
+    n_sectors: int,
+    db: AsyncSession,
+    *,
+    use_millions: bool = True,
+) -> np.ndarray:
+    """Load aggregate value-added data and distribute across sectors.
+
+    Queries FRED compensation (A576RC1) and net operating surplus
+    (W209RC1Q156SBEA) for the nearest available year, then distributes
+    proportionally across sectors using the I-O coefficient column sums
+    as weights. Falls back to uniform distribution if no data is available.
+
+    Args:
+        use_millions: If True, scale FRED billions to millions (for BEA Use tables
+            in millions of dollars). If False, keep billions per sector.
+
+    Returns:
+        n-vector of per-sector value added estimates.
+    """
+    import datetime as dt
+
+    from ecpm.models.observation import Observation
+
+    compensation_total = None
+    surplus_total = None
+
+    # Find the closest observation to the target year for each series
+    target_start = dt.datetime(year, 1, 1, tzinfo=dt.timezone.utc)
+    target_end = dt.datetime(year, 12, 31, tzinfo=dt.timezone.utc)
+
+    for series_id, attr in [("A576RC1", "compensation"), ("W209RC1Q156SBEA", "surplus")]:
+        stmt = (
+            select(Observation.value)
+            .where(
+                Observation.series_id == series_id,
+                Observation.observation_date >= target_start,
+                Observation.observation_date <= target_end,
+                Observation.value.is_not(None),
+            )
+            .order_by(Observation.observation_date.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        row = result.scalar_one_or_none()
+
+        if row is None:
+            # Try the closest year before
+            stmt_fallback = (
+                select(Observation.value)
+                .where(
+                    Observation.series_id == series_id,
+                    Observation.observation_date <= target_end,
+                    Observation.value.is_not(None),
+                )
+                .order_by(Observation.observation_date.desc())
+                .limit(1)
+            )
+            result_fb = await db.execute(stmt_fallback)
+            row = result_fb.scalar_one_or_none()
+
+        if row is not None:
+            if attr == "compensation":
+                compensation_total = float(row)
+            else:
+                surplus_total = float(row)
+
+    if compensation_total is not None and surplus_total is not None:
+        total_va_billions = compensation_total + surplus_total
+        scale = 1000.0 if use_millions else 1.0
+        total_va = total_va_billions * scale
+        value_added = np.full(n_sectors, total_va / n_sectors)
+    else:
+        logger.warning(
+            "structural.reproduction.value_added_fallback",
+            year=year,
+            compensation_available=compensation_total is not None,
+            surplus_available=surplus_total is not None,
+        )
+        value_added = np.ones(n_sectors) * 100
+
+    return value_added
 
 
 # ---------------------------------------------------------------------------
@@ -130,15 +290,17 @@ async def _get_available_years(db: AsyncSession) -> list[int]:
 
 
 @router.get("/years", response_model=YearsResponse)
+@limiter.limit(RATE_READ)
 async def get_years(
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> YearsResponse:
-    """Return list of years with available I-O data.
+    """Return years that have coefficient I-O cells (newest first).
 
-    Returns years sorted descending (newest first).
+    Empty when no BEA I-O ingestion has been run. No placeholder years.
     """
     redis = _get_redis()
-    cache_key = build_cache_key("structural/years", {})
+    cache_key = build_cache_key("structural/years/v2", {})
 
     # Try cache first
     cached = await cache_get(cache_key, redis=redis)
@@ -146,14 +308,7 @@ async def get_years(
         logger.debug("structural.years.cache_hit", key=cache_key)
         return YearsResponse.model_validate_json(cached)
 
-    # Query database
     years = await _get_available_years(db)
-
-    # If no data in DB, return default range for API exploration
-    if not years:
-        # Return placeholder years (actual data requires BEA ingestion)
-        years = list(range(2022, 1996, -1))
-
     response = YearsResponse(years=years)
 
     # Cache the response
@@ -165,7 +320,9 @@ async def get_years(
 
 
 @router.get("/matrix/{year}", response_model=MatrixResponse)
+@limiter.limit(RATE_READ)
 async def get_matrix(
+    request: Request,
     year: int,
     matrix_type: str = Query(
         "coefficients",
@@ -208,18 +365,23 @@ async def get_matrix(
             detail=f"No I-O data available for year {year}",
         )
 
-    matrix, row_labels, col_labels = data
+    matrix, row_labels, col_labels, row_disp, col_disp = data
     diagnostics = None
 
     if matrix_type == "inverse":
-        # Compute Leontief inverse
-        L, diag = compute_leontief_inverse(matrix)
+        # BEA Use tables may be non-square; square for Leontief inverse
+        sq_matrix, sq_codes = _square_matrix(matrix, row_labels, col_labels)
+        L, diag = compute_leontief_inverse(sq_matrix)
         if L is None:
             raise HTTPException(
                 status_code=500,
                 detail="Failed to compute Leontief inverse (singular matrix)",
             )
         matrix = L
+        row_labels = sq_codes
+        col_labels = sq_codes
+        row_disp = _axis_display_for_common(sq_codes, data[1], data[3])
+        col_disp = _axis_display_for_common(sq_codes, data[2], data[4])
         diagnostics = diag
 
     elif matrix_type == "flows":
@@ -239,6 +401,12 @@ async def get_matrix(
         matrix = flows
         row_labels = ["Dept_I", "Dept_II"]
         col_labels = ["Dept_I", "Dept_II"]
+        _dept_labels = [
+            "Department I (means of production)",
+            "Department II (means of consumption)",
+        ]
+        row_disp = list(_dept_labels)
+        col_disp = list(_dept_labels)
 
     response = MatrixResponse(
         year=year,
@@ -247,6 +415,8 @@ async def get_matrix(
         col_labels=col_labels,
         matrix_type=matrix_type,
         diagnostics=diagnostics,
+        row_display_labels=row_disp,
+        col_display_labels=col_disp,
     )
 
     # Cache the response
@@ -258,8 +428,10 @@ async def get_matrix(
 
 
 @router.post("/shock", response_model=ShockResultResponse)
+@limiter.limit(RATE_WRITE)
 async def simulate_shock_endpoint(
-    request: ShockRequest,
+    request: Request,
+    shock_request: ShockRequest,
     db: AsyncSession = Depends(get_db),
 ) -> ShockResultResponse:
     """Simulate shock propagation through Leontief inverse.
@@ -269,7 +441,7 @@ async def simulate_shock_endpoint(
     redis = _get_redis()
 
     # Create cache key from request hash
-    request_hash = hashlib.sha256(request.model_dump_json().encode()).hexdigest()[:16]
+    request_hash = hashlib.sha256(shock_request.model_dump_json().encode()).hexdigest()[:16]
     cache_key = build_cache_key(f"structural/shock/{request_hash}", {})
 
     # Try cache first
@@ -279,15 +451,18 @@ async def simulate_shock_endpoint(
         return ShockResultResponse.model_validate_json(cached)
 
     # Load coefficient matrix for the year
-    data = await _get_matrix_from_db(request.year, "coefficients", db)
+    data = await _get_matrix_from_db(shock_request.year, "coefficients", db)
 
     if data is None:
         raise HTTPException(
             status_code=404,
-            detail=f"No I-O data available for year {request.year}",
+            detail=f"No I-O data available for year {shock_request.year}",
         )
 
-    A, sector_codes, _ = data
+    A_raw, row_labels, col_labels, _, _ = data
+
+    # BEA Use tables may be non-square; square for Leontief inverse
+    A, sector_codes = _square_matrix(A_raw, row_labels, col_labels)
 
     # Compute Leontief inverse
     L, diagnostics = compute_leontief_inverse(A)
@@ -300,7 +475,7 @@ async def simulate_shock_endpoint(
     # Map sector codes to indices
     code_to_idx = {code: i for i, code in enumerate(sector_codes)}
     shocks_indexed = {}
-    for code, magnitude in request.shocks.items():
+    for code, magnitude in shock_request.shocks.items():
         if code in code_to_idx:
             shocks_indexed[code_to_idx[code]] = magnitude
 
@@ -328,10 +503,10 @@ async def simulate_shock_endpoint(
     ]
 
     response = ShockResultResponse(
-        year=request.year,
+        year=shock_request.year,
         impacts=impacts,
         total_impact=result["total_impact"],
-        shocked_sectors=list(request.shocks.keys()),
+        shocked_sectors=list(shock_request.shocks.keys()),
     )
 
     # Cache the response
@@ -343,7 +518,9 @@ async def simulate_shock_endpoint(
 
 
 @router.get("/reproduction/{year}", response_model=ReproductionResponse)
+@limiter.limit(RATE_READ)
 async def get_reproduction_schema(
+    request: Request,
     year: int,
     db: AsyncSession = Depends(get_db),
 ) -> ReproductionResponse:
@@ -353,7 +530,7 @@ async def get_reproduction_schema(
     proportionality condition checks.
     """
     redis = _get_redis()
-    cache_key = build_cache_key(f"structural/reproduction/{year}", {})
+    cache_key = build_cache_key(f"structural/reproduction/v2/{year}", {})
 
     # Try cache first
     cached = await cache_get(cache_key, redis=redis)
@@ -361,59 +538,98 @@ async def get_reproduction_schema(
         logger.debug("structural.reproduction.cache_hit", key=cache_key)
         return ReproductionResponse.model_validate_json(cached)
 
-    # Load matrix
-    data = await _get_matrix_from_db(year, "coefficients", db)
+    # Prefer the dollar-flow Use table for c and flows in millions of dollars.
+    # Reject rows that look like technical coefficients (mis-ingested data).
+    # Fall back to the coefficient matrix if needed.
+    use_data = await _get_matrix_from_db(year, "use", db)
+    coeff_data = await _get_matrix_from_db(year, "coefficients", db)
 
-    if data is None:
+    if use_data is None and coeff_data is None:
         raise HTTPException(
             status_code=404,
             detail=f"No I-O data available for year {year}",
         )
 
-    A, sector_codes, _ = data
+    use_matrix_raw = use_data[0] if use_data else None
+    use_is_dollar = (
+        use_data is not None and not _looks_like_coefficient_matrix(use_matrix_raw)
+    )
+    if use_data is not None and not use_is_dollar:
+        logger.warning(
+            "structural.reproduction.use_table_looks_like_coefficients",
+            year=year,
+            max_cell=float(np.nanmax(np.abs(use_matrix_raw))),
+        )
+
+    is_dollar_flows = use_is_dollar
+    if is_dollar_flows:
+        raw_matrix, row_labels, col_labels = (
+            use_data[0],
+            use_data[1],
+            use_data[2],
+        )
+    else:
+        if coeff_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No coefficient I-O data available for year {year}",
+            )
+        raw_matrix, row_labels, col_labels = (
+            coeff_data[0],
+            coeff_data[1],
+            coeff_data[2],
+        )
+
+    # BEA Use tables may be non-square; square for analysis
+    sq_matrix, sector_codes = _square_matrix(raw_matrix, row_labels, col_labels)
 
     # Classify sectors
     classification = classify_departments(sector_codes)
 
-    # Compute reproduction flows
-    # Note: This uses simplified value-added approximation
-    # Proper implementation would load value-added data from GDPbyIndustry
-    n = A.shape[0]
-    value_added = np.ones(n) * 100  # Placeholder - would come from actual data
+    # Value added: millions when paired with dollar Use; billions when using A only.
+    n = sq_matrix.shape[0]
+    value_added = await _load_value_added(
+        year, n, db, use_millions=is_dollar_flows
+    )
 
     flows_result = compute_reproduction_flows(
-        use_matrix=A,  # Using coefficients as proxy
+        use_matrix=sq_matrix,
         value_added=value_added,
         classification=classification,
         sector_codes=sector_codes,
+        is_dollar_flows=is_dollar_flows,
     )
 
-    # Build Sankey data
+    # Build Sankey data with 4 nodes (produced / bought split per department)
+    # to avoid circular links, which Sankey diagrams cannot represent.
     sankey_nodes = [
-        SankeyNode(id="Dept_I", label="Department I (Means of Production)"),
-        SankeyNode(id="Dept_II", label="Department II (Means of Consumption)"),
+        SankeyNode(id="I_prod", label="Machinery & Materials produced"),
+        SankeyNode(id="II_prod", label="Consumer Goods produced"),
+        SankeyNode(id="I_buy", label="Bought by Dept I"),
+        SankeyNode(id="II_buy", label="Bought by Dept II"),
     ]
 
-    # Flows: I->II represents I(v+s), II->I represents II(c) demand
-    prop = flows_result["proportionality"]
-    condition_color = "green" if prop["condition_met"] else "red"
-
+    flow_matrix = flows_result["flows"]
     sankey_links = [
-        SankeyLink(
-            source="Dept_I",
-            target="Dept_II",
-            value=prop["i_v_plus_s"],
-            color=condition_color,
-        ),
-        SankeyLink(
-            source="Dept_II",
-            target="Dept_I",
-            value=prop["ii_c"],
-            color=condition_color,
-        ),
+        l
+        for l in [
+            SankeyLink(source="I_prod", target="I_buy", value=flow_matrix[0][0]),
+            SankeyLink(source="I_prod", target="II_buy", value=flow_matrix[0][1]),
+            SankeyLink(source="II_prod", target="I_buy", value=flow_matrix[1][0]),
+            SankeyLink(source="II_prod", target="II_buy", value=flow_matrix[1][1]),
+        ]
+        if l.value > 0
     ]
 
     sankey_data = SankeyData(nodes=sankey_nodes, links=sankey_links)
+
+    prop = flows_result["proportionality"]
+    if is_dollar_flows:
+        c_unit = "millions_of_dollars"
+        vs_unit = "millions_of_dollars"
+    else:
+        c_unit = "coefficient_column_sum"
+        vs_unit = "billions_of_dollars"
 
     response = ReproductionResponse(
         year=year,
@@ -428,6 +644,8 @@ async def get_reproduction_schema(
             s=flows_result["dept_ii"]["s"],
         ),
         flows=flows_result["flows"],
+        constant_capital_unit=c_unit,
+        labor_and_surplus_unit=vs_unit,
         proportionality=ProportionalityCheck(
             i_v_plus_s=prop["i_v_plus_s"],
             ii_c=prop["ii_c"],
@@ -449,7 +667,9 @@ async def get_reproduction_schema(
 
 
 @router.get("/critical-sectors/{year}", response_model=CriticalSectorsResponse)
+@limiter.limit(RATE_READ)
 async def get_critical_sectors(
+    request: Request,
     year: int,
     threshold: float = Query(0.1, description="Criticality threshold"),
     db: AsyncSession = Depends(get_db),
@@ -476,10 +696,13 @@ async def get_critical_sectors(
             detail=f"No I-O data available for year {year}",
         )
 
-    A, sector_codes, _ = data
+    A, row_labels, col_labels, _, _ = data
+
+    # BEA Use tables may be non-square; extract square submatrix
+    A_sq, sector_codes = _square_matrix(A, row_labels, col_labels)
 
     # Compute Leontief inverse
-    L, _ = compute_leontief_inverse(A)
+    L, _ = compute_leontief_inverse(A_sq)
     if L is None:
         raise HTTPException(
             status_code=500,

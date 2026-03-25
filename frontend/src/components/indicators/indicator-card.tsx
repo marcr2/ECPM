@@ -15,16 +15,9 @@ interface IndicatorCardProps {
 
 function formatValue(value: number | null, units: string): string {
   if (value === null) return "N/A";
-  if (units === "%" || units === "pp") {
-    return `${value.toFixed(2)}${units}`;
-  }
-  if (units === "billions USD") {
-    return `$${value.toFixed(1)}B`;
-  }
-  if (units === "index") {
-    return value.toFixed(2);
-  }
-  // ratio or other
+  if (units === "%" || units === "pp") return value.toFixed(2);
+  if (units === "billions USD") return value.toFixed(1);
+  if (units === "index") return value.toFixed(2);
   return value.toFixed(4);
 }
 

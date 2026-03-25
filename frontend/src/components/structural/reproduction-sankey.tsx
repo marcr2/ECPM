@@ -3,7 +3,47 @@
 import { useMemo } from "react";
 import { ResponsiveSankey } from "@nivo/sankey";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ReproductionResponse, SankeyData } from "@/lib/structural-api";
+import type {
+  ReproductionResponse,
+  SankeyData,
+  ConstantCapitalUnit,
+  LaborSurplusUnit,
+} from "@/lib/structural-api";
+
+function formatC(value: number, unit: ConstantCapitalUnit) {
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: unit === "millions_of_dollars" ? 1 : 3,
+  });
+}
+
+function formatVS(value: number, unit: LaborSurplusUnit) {
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: unit === "billions_of_dollars" ? 2 : 1,
+  });
+}
+
+/** Sankey link/node magnitudes: millions USD when Use table is dollar flows; else coefficient sums. */
+function sankeyFlowUnitPhrase(cUnit: ConstantCapitalUnit): {
+  isDollars: boolean;
+  shortLabel: string;
+  sentenceFragment: string;
+} {
+  if (cUnit === "millions_of_dollars") {
+    return {
+      isDollars: true,
+      shortLabel: "mn US$",
+      sentenceFragment: "million US dollars (BEA Use table, same scale as intermediate flows)",
+    };
+  }
+  return {
+    isDollars: false,
+    shortLabel: "I–O coeffs",
+    sentenceFragment: "sum of technical coefficients",
+  };
+}
+
+const SANKEY_TOOLTIP_PANEL_CLASS =
+  "rounded-md border border-border bg-card px-4 py-3 text-sm shadow-lg leading-relaxed min-w-[min(22rem,calc(100vw-2rem))] max-w-xl";
 
 interface ReproductionSankeyProps {
   reproductionData: ReproductionResponse;
@@ -18,29 +58,23 @@ interface ReproductionSankeyProps {
 export function ReproductionSankey({
   reproductionData,
 }: ReproductionSankeyProps) {
-  // Build sankey data from flows if not provided
+  // Build an acyclic 4-node graph from the 2x2 inter-department flows matrix.
+  // Left side = what each department produces; right side = who buys it.
   const sankeyData: SankeyData = useMemo(() => {
-    if (reproductionData.sankey_data) {
-      return reproductionData.sankey_data;
-    }
-
-    // Construct from flows matrix
-    // flows[0][0] = I->I, flows[0][1] = I->II
-    // flows[1][0] = II->I, flows[1][1] = II->II
     const flows = reproductionData.flows;
 
     return {
       nodes: [
-        { id: "I_out", label: "Dept I Output" },
-        { id: "II_out", label: "Dept II Output" },
-        { id: "I_in", label: "Dept I Input" },
-        { id: "II_in", label: "Dept II Input" },
+        { id: "I_prod", label: "Machinery & Materials produced" },
+        { id: "II_prod", label: "Consumer Goods produced" },
+        { id: "I_buy", label: "Bought by Dept I" },
+        { id: "II_buy", label: "Bought by Dept II" },
       ],
       links: [
-        { source: "I_out", target: "I_in", value: flows[0]?.[0] ?? 0 },
-        { source: "I_out", target: "II_in", value: flows[0]?.[1] ?? 0 },
-        { source: "II_out", target: "I_in", value: flows[1]?.[0] ?? 0 },
-        { source: "II_out", target: "II_in", value: flows[1]?.[1] ?? 0 },
+        { source: "I_prod", target: "I_buy", value: flows[0]?.[0] ?? 0 },
+        { source: "I_prod", target: "II_buy", value: flows[0]?.[1] ?? 0 },
+        { source: "II_prod", target: "I_buy", value: flows[1]?.[0] ?? 0 },
+        { source: "II_prod", target: "II_buy", value: flows[1]?.[1] ?? 0 },
       ].filter((l) => l.value > 0),
     };
   }, [reproductionData]);
@@ -52,56 +86,134 @@ export function ReproductionSankey({
   const deptI = reproductionData.dept_i;
   const deptII = reproductionData.dept_ii;
 
+  const cUnit = reproductionData.constant_capital_unit;
+  const vsUnit = reproductionData.labor_and_surplus_unit;
+  const flowUnit = sankeyFlowUnitPhrase(cUnit);
+
+  const intermediateSublabel =
+    cUnit === "coefficient_column_sum"
+      ? "Intermediate inputs (sum of technical coefficients)"
+      : "Intermediate inputs (mn $)";
+  const wagesSublabel =
+    vsUnit === "billions_of_dollars"
+      ? "Wages & compensation (bn $)"
+      : "Wages & compensation (mn $)";
+  const surplusSublabel =
+    vsUnit === "billions_of_dollars"
+      ? "Gross operating surplus (bn $)"
+      : "Gross operating surplus (mn $)";
+
   return (
     <div className="space-y-4">
       {/* Sankey diagram */}
       <div className="h-[400px] w-full">
         <ResponsiveSankey
           data={sankeyData}
-          margin={{ top: 40, right: 160, bottom: 40, left: 50 }}
+          margin={{ top: 40, right: 160, bottom: 40, left: 230 }}
+          label={(node) => (node as { label?: string }).label ?? String(node.id)}
           align="justify"
           colors={(node) => {
             const id = String(node.id);
-            if (id.startsWith("I")) return "#3b82f6"; // blue
-            return "#22c55e"; // green
+            if (id.startsWith("I_")) return "#3b82f6"; // blue = Dept I
+            // Slightly brighter green so thin Dept II ribbons stay visible on dark UI
+            return "#4ade80";
           }}
           nodeOpacity={1}
           nodeHoverOpacity={1}
-          nodeThickness={18}
+          nodeThickness={22}
           nodeSpacing={24}
           nodeBorderWidth={0}
           nodeBorderRadius={3}
-          linkOpacity={0.5}
-          linkHoverOpacity={0.8}
+          // Default Nivo linkBlendMode is "multiply", which crushes luminance on dark
+          // backgrounds—especially when Dept II flows are thin after dollar scaling.
+          linkBlendMode="normal"
+          linkOpacity={0.78}
+          linkHoverOpacity={0.95}
           linkContract={3}
-          enableLinkGradient={true}
+          enableLinkGradient={false}
           labelPosition="outside"
           labelOrientation="horizontal"
           labelPadding={16}
           labelTextColor={{ from: "color", modifiers: [["brighter", 0.8]] }}
           nodeTooltip={({ node }) => (
-            <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-lg">
+            <div className={SANKEY_TOOLTIP_PANEL_CLASS}>
               <div className="font-medium">{node.label || node.id}</div>
               <div className="text-muted-foreground">
-                Total: {node.value?.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })} ({((node.value ?? 0) / totalFlow * 100).toFixed(1)}%)
+                {flowUnit.isDollars ? (
+                  <>
+                    Flow total:{" "}
+                    <span className="font-medium text-foreground">
+                      {node.value?.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      {flowUnit.shortLabel}
+                    </span>
+                    <span className="block text-xs mt-1 opacity-90">
+                      ({flowUnit.sentenceFragment})
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Aggregate:{" "}
+                    <span className="font-medium text-foreground">
+                      {node.value?.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                    <span className="block text-xs mt-1 opacity-90">
+                      {flowUnit.sentenceFragment}
+                    </span>
+                  </>
+                )}
+                <span className="block mt-1">
+                  {((node.value ?? 0) / totalFlow * 100).toFixed(1)}% of chart total
+                </span>
               </div>
             </div>
           )}
-          linkTooltip={({ link }) => (
-            <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-lg">
-              <div className="font-medium">
-                {String(link.source.id).replace("_out", "")} &rarr;{" "}
-                {String(link.target.id).replace("_in", "")}
+          linkTooltip={({ link }) => {
+            const srcId = String(link.source.id);
+            const tgtId = String(link.target.id);
+            const seller = srcId.startsWith("I_") ? "Dept I" : "Dept II";
+            const goods = srcId.startsWith("I_") ? "machinery & materials" : "consumer goods";
+            const buyer = tgtId === "I_buy" ? "Dept I" : "Dept II";
+            return (
+              <div className={SANKEY_TOOLTIP_PANEL_CLASS}>
+                <div className="font-medium">
+                  {seller} sells {goods} to {buyer}
+                </div>
+                <div className="text-muted-foreground">
+                  {flowUnit.isDollars ? (
+                    <>
+                      <span className="font-medium text-foreground">
+                        {link.value.toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        {flowUnit.shortLabel}
+                      </span>
+                      <span className="block text-xs mt-1 opacity-90">
+                        ({flowUnit.sentenceFragment})
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium text-foreground">
+                        {link.value.toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                      <span className="block text-xs mt-1 opacity-90">
+                        {flowUnit.sentenceFragment}
+                      </span>
+                    </>
+                  )}
+                  <span className="block mt-1">
+                    {((link.value / totalFlow) * 100).toFixed(1)}% of chart total
+                  </span>
+                </div>
               </div>
-              <div className="text-muted-foreground">
-                Flow: {link.value.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })} ({((link.value / totalFlow) * 100).toFixed(1)}%)
-              </div>
-            </div>
-          )}
+            );
+          }}
           theme={{
             text: {
               fill: "var(--muted-foreground)",
@@ -124,21 +236,26 @@ export function ReproductionSankey({
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold tabular-nums">
-                  {deptI.c.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatC(deptI.c, cUnit)}
                 </p>
-                <p className="text-xs text-muted-foreground">c (Constant)</p>
+                <p className="text-xs text-muted-foreground">c (Constant Capital)</p>
+                <p className="text-[10px] text-muted-foreground/60">
+                  {intermediateSublabel}
+                </p>
               </div>
               <div>
                 <p className="text-2xl font-bold tabular-nums">
-                  {deptI.v.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatVS(deptI.v, vsUnit)}
                 </p>
-                <p className="text-xs text-muted-foreground">v (Variable)</p>
+                <p className="text-xs text-muted-foreground">v (Variable Capital)</p>
+                <p className="text-[10px] text-muted-foreground/60">{wagesSublabel}</p>
               </div>
               <div>
                 <p className="text-2xl font-bold tabular-nums">
-                  {deptI.s.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatVS(deptI.s, vsUnit)}
                 </p>
-                <p className="text-xs text-muted-foreground">s (Surplus)</p>
+                <p className="text-xs text-muted-foreground">s (Surplus Value)</p>
+                <p className="text-[10px] text-muted-foreground/60">{surplusSublabel}</p>
               </div>
             </div>
           </CardContent>
@@ -147,7 +264,7 @@ export function ReproductionSankey({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-green-500" />
+              <div className="h-3 w-3 rounded-full bg-green-400" />
               Department II (Means of Consumption)
             </CardTitle>
           </CardHeader>
@@ -155,21 +272,26 @@ export function ReproductionSankey({
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold tabular-nums">
-                  {deptII.c.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatC(deptII.c, cUnit)}
                 </p>
-                <p className="text-xs text-muted-foreground">c (Constant)</p>
+                <p className="text-xs text-muted-foreground">c (Constant Capital)</p>
+                <p className="text-[10px] text-muted-foreground/60">
+                  {intermediateSublabel}
+                </p>
               </div>
               <div>
                 <p className="text-2xl font-bold tabular-nums">
-                  {deptII.v.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatVS(deptII.v, vsUnit)}
                 </p>
-                <p className="text-xs text-muted-foreground">v (Variable)</p>
+                <p className="text-xs text-muted-foreground">v (Variable Capital)</p>
+                <p className="text-[10px] text-muted-foreground/60">{wagesSublabel}</p>
               </div>
               <div>
                 <p className="text-2xl font-bold tabular-nums">
-                  {deptII.s.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatVS(deptII.s, vsUnit)}
                 </p>
-                <p className="text-xs text-muted-foreground">s (Surplus)</p>
+                <p className="text-xs text-muted-foreground">s (Surplus Value)</p>
+                <p className="text-[10px] text-muted-foreground/60">{surplusSublabel}</p>
               </div>
             </div>
           </CardContent>

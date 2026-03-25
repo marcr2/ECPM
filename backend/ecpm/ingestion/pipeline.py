@@ -110,6 +110,7 @@ class IngestionPipeline:
             select(SeriesMetadata).where(SeriesMetadata.series_id == series_id)
         )
         existing = result.scalar_one_or_none()
+        result.close()  # Explicitly close result to free connection
 
         now = dt.datetime.now(dt.timezone.utc)
 
@@ -335,7 +336,7 @@ class IngestionPipeline:
         """
         logger.info("ingest_fred_start", series_id=series_id)
 
-        data, info_raw = self.fred_client.fetch_series(series_id)
+        data, info_raw = await self.fred_client.fetch_series_async(series_id)
 
         # Convert info to dict if it's a pandas Series
         if isinstance(info_raw, pd.Series):
@@ -370,7 +371,7 @@ class IngestionPipeline:
             observation_count=count,
         )
 
-        logger.info("ingest_fred_complete", series_id=series_id, count=count)
+        logger.info("fred_fetch_success", series_id=series_id, count=count)
         return count
 
     async def ingest_bea_table(self, table_name: str) -> int:
@@ -513,6 +514,7 @@ class IngestionPipeline:
             select(SeriesMetadata).where(SeriesMetadata.series_id == series_id)
         )
         metadata = result.scalar_one_or_none()
+        result.close()  # Explicitly close result to free connection
         if metadata:
             metadata.fetch_status = "error"
             metadata.fetch_error = error

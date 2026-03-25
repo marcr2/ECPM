@@ -12,9 +12,11 @@ import json
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ecpm.middleware.rate_limit import RATE_READ, limiter
 
 from ecpm.cache import build_cache_key, cache_get, cache_set
 from ecpm.config import get_settings
@@ -41,7 +43,9 @@ def _get_redis():
 
 
 @router.get("/series", response_model=SeriesListResponse)
+@limiter.limit(RATE_READ)
 async def list_series(
+    request: Request,
     source: Optional[str] = Query(None, description="Filter by source (FRED, BEA)"),
     frequency: Optional[str] = Query(None, description="Filter by frequency (D,M,Q,A)"),
     fetch_status: Optional[str] = Query(
@@ -109,7 +113,9 @@ async def list_series(
 
 
 @router.get("/series/{series_id}", response_model=SeriesDataResponse)
+@limiter.limit(RATE_READ)
 async def get_series(
+    request: Request,
     series_id: str,
     frequency: Optional[str] = Query(
         None, description="Align observations to frequency (M, Q, A) using LOCF"

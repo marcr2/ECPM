@@ -30,14 +30,20 @@ out/
 # Environment
 .env
 .env.*
+.env.local
 !.env.example
+.ecpm_token
 
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
+
+# Planning artifacts
+.planning/
 
 # OS
 .DS_Store

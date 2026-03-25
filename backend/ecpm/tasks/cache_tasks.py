@@ -10,14 +10,11 @@ import asyncio
 from datetime import datetime
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from ecpm.cache_manager import (
     invalidate_cache,
     set_cached_indicator,
     set_cached_overview,
 )
-from ecpm.database import async_session
 from ecpm.indicators.computation import compute_all_summaries, compute_indicator
 from ecpm.indicators.definitions import INDICATOR_DEFS, IndicatorSlug
 from ecpm.indicators.registry import MethodologyRegistry
@@ -28,17 +25,34 @@ logger = structlog.get_logger(__name__)
 async def precompute_all_indicators() -> dict[str, int]:
     """Pre-compute all indicators for all methodologies and cache to disk.
 
-    This should be run daily (via cron or scheduler) to refresh the cache.
+    Uses a dedicated engine to avoid stale connection pool issues when
+    multiple asyncio.run() calls happen in the same Celery worker process.
 
     Returns:
         Dict with counts of cached items per methodology.
     """
+    from sqlalchemy.ext.asyncio import (
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
+
+    from ecpm.config import get_settings
+
+    settings = get_settings()
+    local_engine = create_async_engine(
+        settings.database_url, pool_size=3, max_overflow=2, echo=False
+    )
+    local_session = async_sessionmaker(
+        local_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
     start_time = datetime.now()
     logger.info("cache.precompute.started")
 
     results = {}
 
-    db = async_session()
+    db = local_session()
     try:
         for mapper in MethodologyRegistry.list_all():
             methodology = mapper.slug
@@ -130,6 +144,7 @@ async def precompute_all_indicators() -> dict[str, int]:
         return results
     finally:
         await db.close()
+        await local_engine.dispose()
 
 
 def run_precompute_sync() -> dict[str, int]:

@@ -53,10 +53,11 @@ export interface BacktestResult {
   start_date: string;
   end_date: string;
   crisis_index_series: Array<{ date: string; value: number }>;
-  warning_12m: boolean;
-  warning_24m: boolean;
-  peak_value: number;
-  peak_date: string;
+  warning_12m: boolean | null;
+  warning_24m: boolean | null;
+  peak_value: number | null;
+  peak_date: string | null;
+  insufficient_data?: boolean;
 }
 
 export interface BacktestsResponse {
@@ -67,13 +68,15 @@ export interface BacktestsResponse {
 export interface TrainingStep {
   name: string;
   status: string; // "pending" | "running" | "complete" | "error"
+  timestamp: string;
   duration_ms?: number;
   detail?: string;
+  error?: string;
 }
 
-export interface TrainingTriggerResponse {
-  task_id: string;
-  status: string;
+export interface TrainingLogResponse {
+  entries: TrainingStep[];
+  count: number;
 }
 
 // ---------- API client helpers ----------
@@ -152,67 +155,8 @@ export async function fetchBacktests(): Promise<BacktestsResponse> {
 }
 
 /**
- * Trigger model training pipeline.
- * Returns task_id for tracking via SSE stream.
+ * Fetch the latest training log from the server.
  */
-export async function triggerTraining(): Promise<TrainingTriggerResponse> {
-  const res = await fetch(`${API_BASE}/api/forecasting/train`, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-  });
-
-  if (!res.ok) {
-    let errorMessage = res.statusText;
-    try {
-      const errorJson = await res.json();
-      errorMessage = errorJson.detail || errorMessage;
-    } catch {
-      // Ignore JSON parse errors
-    }
-    throw new Error(`API error ${res.status}: ${errorMessage}`);
-  }
-
-  return res.json() as Promise<TrainingTriggerResponse>;
-}
-
-/**
- * Subscribe to training progress SSE stream.
- *
- * @param onMessage - Callback for each progress event
- * @param onError - Optional callback for errors
- * @returns EventSource instance (call .close() to unsubscribe)
- */
-export function subscribeToTrainingProgress(
-  onMessage: (data: TrainingStep) => void,
-  onError?: (err: Event) => void
-): EventSource {
-  const url = `${API_BASE}/api/forecasting/training/stream`;
-  const eventSource = new EventSource(url);
-
-  eventSource.addEventListener("progress", (event) => {
-    try {
-      const data = JSON.parse(event.data) as TrainingStep;
-      onMessage(data);
-    } catch {
-      console.error("Failed to parse training progress event:", event.data);
-    }
-  });
-
-  eventSource.addEventListener("done", () => {
-    eventSource.close();
-  });
-
-  eventSource.onerror = (err) => {
-    if (onError) {
-      onError(err);
-    }
-    // Retry after 3s delay on error
-    setTimeout(() => {
-      if (eventSource.readyState === EventSource.CLOSED) {
-        return; // Already closed, don't retry
-      }
-    }, 3000);
-  };
-
-  return eventSource;
+export async function fetchTrainingLog(): Promise<TrainingLogResponse> {
+  return apiFetch<TrainingLogResponse>("/api/forecasting/training/log");
 }

@@ -14,7 +14,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ecpm.indicators.base import _one_sided_hp_filter
+from ecpm.indicators.base import (
+    IndicatorDoc,
+    NIPAMapping,
+    _one_sided_hp_filter,
+)
 
 
 def compute_productivity_wage_gap(
@@ -92,10 +96,13 @@ def compute_financial_real_ratio(data: dict[str, pd.Series]) -> pd.Series:
     """Compute financial-to-real asset ratio.
 
     Uses FRED series:
-        - BOGZ1FL073164003Q (financial corporate debt proxy) -> key: "financial_assets"
-        - K1PTOTL1ES000 (tangible/real assets) -> key: "real_assets"
+        - TFAABSNNCB (nonfinancial corporate total financial assets)
+          -> key: "financial_assets"
+        - K1PTOTL1ES000 (current-cost net stock of private fixed assets)
+          -> key: "real_assets"
 
-    Simple ratio: financial / real.
+    Frequency alignment: real_assets (annual) is reindexed onto the
+    financial_assets (quarterly) index using forward-fill (LOCF).
 
     Args:
         data: Must contain 'financial_assets' and 'real_assets'.
@@ -103,7 +110,14 @@ def compute_financial_real_ratio(data: dict[str, pd.Series]) -> pd.Series:
     Returns:
         pd.Series of ratio values.
     """
-    return data["financial_assets"] / data["real_assets"]
+    financial = data["financial_assets"]
+    real = data["real_assets"]
+
+    combined_idx = financial.index.union(real.index).sort_values()
+    real_aligned = real.reindex(combined_idx).ffill()
+    real_aligned = real_aligned.reindex(financial.index)
+
+    return financial / real_aligned
 
 
 def compute_debt_service_ratio(data: dict[str, pd.Series]) -> pd.Series:
@@ -125,3 +139,166 @@ def compute_debt_service_ratio(data: dict[str, pd.Series]) -> pd.Series:
     debt_service = data["debt_service"] / 1000.0  # Convert millions to billions
     corporate_income = data["corporate_income"]  # Already in billions
     return (debt_service / corporate_income) * 100
+
+
+_METHOD_INDEPENDENT_INTRO = (
+    "Identical under Shaikh/Tonak and Kliman TSSI: Marxist methodology applies "
+    "only to the core NIPA-based C, V, and S indicators. "
+)
+
+_BIS_CREDIT_GAP_CITATION = (
+    "Drehmann, M. & Tsatsaronis, K. (2014). The Credit-to-GDP Gap and "
+    "Countercyclical Capital Buffers. BIS Quarterly Review, March 2014."
+)
+
+def methodology_independent_indicator_docs(
+    *, marxist_citation: str | None = None
+) -> list[IndicatorDoc]:
+    """Documentation for financial fragility indicators (shared by all mappers).
+
+    ``marxist_citation`` is appended to each entry so methodology-specific docs
+    remain citable alongside BIS/Z.1 references.
+    """
+
+    def _cite(*extra: str) -> list[str]:
+        base = list(extra)
+        if marxist_citation:
+            base.append(marxist_citation)
+        return base
+
+    return [
+        IndicatorDoc(
+            name="Productivity-Wage Gap",
+            slug="productivity_wage_gap",
+            formula_latex=(
+                r"\text{Gap} = \frac{\text{Output/Hour Index}}"
+                r"{\text{Real Comp/Hour Index}} \times 100"
+            ),
+            interpretation=(
+                _METHOD_INDEPENDENT_INTRO
+                + "Nonfarm business output per hour vs. real compensation per hour, "
+                "each normalized to 100 at the first observation; 20-period "
+                "rolling mean for smoothing."
+            ),
+            mappings=[
+                NIPAMapping(
+                    marx_category="labor_productivity_index",
+                    nipa_table="FRED",
+                    nipa_line=1,
+                    nipa_description="Output per hour, nonfarm business",
+                    operation="direct",
+                    notes="FRED OPHNFB",
+                ),
+                NIPAMapping(
+                    marx_category="real_compensation_index",
+                    nipa_table="FRED",
+                    nipa_line=2,
+                    nipa_description="Real compensation per hour, nonfarm business",
+                    operation="direct",
+                    notes="FRED PRS85006092",
+                ),
+            ],
+            citations=_cite(),
+        ),
+        IndicatorDoc(
+            name="Credit-to-GDP Gap",
+            slug="credit_gdp_gap",
+            formula_latex=(
+                r"\text{Gap}_t = \frac{\text{Credit}_t}{\text{GDP}_t} \times 100"
+                r" - \text{HP}^{(\text{one-sided})}_{\lambda=400{,}000}"
+                r"\!\left(\frac{\text{Credit}_t}{\text{GDP}_t}\right)"
+            ),
+            interpretation=(
+                _METHOD_INDEPENDENT_INTRO
+                + "Nonfinancial corporate credit vs. nominal GDP; one-sided "
+                "Hodrick-Prescott filter (BIS, lambda=400,000 for quarterly data). "
+                "Positive gap: credit growth above long-run trend."
+            ),
+            mappings=[
+                NIPAMapping(
+                    marx_category="private_credit",
+                    nipa_table="Z.1",
+                    nipa_line=1,
+                    nipa_description="Nonfinancial corporate debt securities and loans",
+                    operation="direct",
+                    notes="FRED BOGZ1FL073164003Q (millions; converted to billions)",
+                ),
+                NIPAMapping(
+                    marx_category="nominal_output",
+                    nipa_table="NIPA",
+                    nipa_line=2,
+                    nipa_description="Gross domestic product",
+                    operation="direct",
+                    notes="FRED GDP (billions)",
+                ),
+            ],
+            citations=_cite(_BIS_CREDIT_GAP_CITATION),
+        ),
+        IndicatorDoc(
+            name="Financial-to-Real Asset Ratio",
+            slug="financial_real_ratio",
+            formula_latex=r"\frac{\text{Financial Assets}}{\text{Real (Tangible) Assets}}",
+            interpretation=(
+                _METHOD_INDEPENDENT_INTRO
+                + "Nonfinancial corporate total financial assets (Z.1 B.103) "
+                "relative to current-cost net stock of private fixed assets "
+                "(FRED K1PTOTL1ES000), with annual real assets LOCF-aligned to "
+                "the quarterly financial series."
+            ),
+            mappings=[
+                NIPAMapping(
+                    marx_category="financial_assets",
+                    nipa_table="Z.1",
+                    nipa_line=1,
+                    nipa_description="Total financial assets, nonfinancial corporate",
+                    operation="direct",
+                    notes="FRED TFAABSNNCB",
+                ),
+                NIPAMapping(
+                    marx_category="tangible_assets_proxy",
+                    nipa_table="FAAt101",
+                    nipa_line=2,
+                    nipa_description="Current-cost net stock of private fixed assets",
+                    operation="direct",
+                    notes="FRED K1PTOTL1ES000 (millions; ratio uses consistent units)",
+                ),
+            ],
+            citations=_cite(
+                "Board of Governors of the Federal Reserve System (2024). "
+                "Financial Accounts of the United States (Z.1)."
+            ),
+        ),
+        IndicatorDoc(
+            name="Corporate Debt Service Ratio",
+            slug="debt_service_ratio",
+            formula_latex=(
+                r"\text{DSR} = \frac{\text{Interest Payments}}"
+                r"{\text{Corporate Income}} \times 100"
+            ),
+            interpretation=(
+                _METHOD_INDEPENDENT_INTRO
+                + "Interest and miscellaneous payments (Z.1) as a share of "
+                "corporate profits before tax (NIPA); indicates leverage "
+                "pressure and sensitivity to rate shocks."
+            ),
+            mappings=[
+                NIPAMapping(
+                    marx_category="debt_service",
+                    nipa_table="Z.1",
+                    nipa_line=1,
+                    nipa_description="Interest and miscellaneous payments, NFCB",
+                    operation="direct",
+                    notes="FRED BOGZ1FU106130001Q (millions; converted to billions)",
+                ),
+                NIPAMapping(
+                    marx_category="corporate_income",
+                    nipa_table="NIPA",
+                    nipa_line=2,
+                    nipa_description="Corporate profits before tax",
+                    operation="direct",
+                    notes="FRED A445RC1Q027SBEA (billions)",
+                ),
+            ],
+            citations=_cite(),
+        ),
+    ]

@@ -130,6 +130,9 @@ class MethodologyMapper(ABC):
         """Compute financial-to-real asset ratio.
 
         Default implementation delegates to financial.py standalone function.
+        Uses TFAABSNNCB (nonfinancial corporate total financial assets)
+        and K1PTOTL1ES000 (current-cost net stock of private fixed assets).
+        Annual real_assets are LOCF-aligned onto the quarterly financial_assets index.
 
         Args:
             data: Must contain 'financial_assets' and 'real_assets'.

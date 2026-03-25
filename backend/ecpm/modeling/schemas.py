@@ -93,6 +93,7 @@ class CrisisIndex(BaseModel):
     realization_component: float
     financial_component: float
     history: list[dict]
+    learned_weights: Optional[dict] = None
 
 
 class BacktestResult(BaseModel):
@@ -107,10 +108,11 @@ class BacktestResult(BaseModel):
     start_date: str
     end_date: str
     crisis_index_series: list[dict]
-    warning_12m: bool
-    warning_24m: bool
-    peak_value: float
-    peak_date: str
+    warning_12m: Optional[bool] = None
+    warning_24m: Optional[bool] = None
+    peak_value: Optional[float] = None
+    peak_date: Optional[str] = None
+    insufficient_data: Optional[bool] = None
 
 
 class ForecastsResponse(BaseModel):

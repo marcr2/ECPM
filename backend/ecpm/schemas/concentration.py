@@ -22,6 +22,7 @@ class IndustryListItem(BaseModel):
     hhi: float
     level: str  # "monopoly", "highly_concentrated", "moderately_concentrated", "competitive"
     trend_direction: str  # "increasing", "decreasing", "stable"
+    data_source: Optional[str] = None  # "edgar", "census", or "estimated"
 
 
 class IndustriesResponse(BaseModel):

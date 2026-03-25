@@ -126,11 +126,6 @@ export default function ForecastingPage() {
     setIsRefreshing(false);
   };
 
-  // After training completes, refresh all data
-  const handleTrainingComplete = () => {
-    fetchAllData(false);
-  };
-
   // Get first forecast for main chart
   const firstForecast = forecasts.data?.forecasts
     ? Object.values(forecasts.data.forecasts)[0]
@@ -243,9 +238,7 @@ export default function ForecastingPage() {
             <BacktestTimeline backtests={backtests.data?.backtests || []} />
           )}
 
-          {activeTab === "training" && (
-            <TrainingStatus onTrainingComplete={handleTrainingComplete} />
-          )}
+          {activeTab === "training" && <TrainingStatus />}
         </CardContent>
       </Card>
     </div>

@@ -14,6 +14,7 @@ from __future__ import annotations
 import pandas as pd
 
 from ecpm.indicators.base import IndicatorDoc, MethodologyMapper, NIPAMapping
+from ecpm.indicators.financial import methodology_independent_indicator_docs
 
 # Series IDs used by this methodology
 SERIES_NATIONAL_INCOME = "BEA:T11200:L1"  # BEA NIPA Table 1.12, Line 1 (Total National Income)
@@ -235,4 +236,4 @@ class ShaikhTonakMapper(MethodologyMapper):
                 mappings=[ni_mapping, comp_mapping],
                 citations=[_CITATION],
             ),
-        ]
+        ] + methodology_independent_indicator_docs(marxist_citation=_CITATION)

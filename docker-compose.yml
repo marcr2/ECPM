@@ -1,12 +1,16 @@
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg16
-    ports:
-      - "5432:5432"
+    # No host port -- only accessible within the Docker network.
+    # Uncomment to expose locally: ports: ["127.0.0.1:5432:5432"]
+    command: >
+      postgres
+      -c max_locks_per_transaction=4096
+      -c max_pred_locks_per_transaction=4096
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ecpm}
       POSTGRES_USER: ${POSTGRES_USER:-ecpm}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecpm_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
       - ./config/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -15,21 +19,51 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+          pids: 256
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ecpm-net
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # No host port -- only accessible within the Docker network.
+    # Uncomment to expose locally: ports: ["127.0.0.1:6379:6379"]
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+          pids: 64
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecpm-net
 
   backend:
     build:
       context: ./backend
-    command: uvicorn ecpm.main:app --host 0.0.0.0 --port 8000
+    command: sh -c "alembic upgrade head && uvicorn ecpm.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     env_file:
@@ -46,6 +80,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+          pids: 128
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.cache
+    networks:
+      - ecpm-net
 
   celery_worker:
     build:
@@ -60,11 +110,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+          pids: 128
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ecpm-net
 
   celery_beat:
     build:
       context: ./backend
-    command: celery -A ecpm.tasks.celery_app beat --loglevel=info
+    command: celery -A ecpm.tasks.celery_app beat --loglevel=info -s /tmp/celerybeat-schedule
     env_file:
       - .env
     volumes:
@@ -72,6 +132,18 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+          pids: 64
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    networks:
+      - ecpm-net
 
   frontend:
     build:
@@ -87,7 +159,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+          pids: 256
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ecpm-net
 
 volumes:
   timescaledb_data:
   indicator_cache:
+  redis_data:
+
+networks:
+  ecpm-net:
+    driver: bridge

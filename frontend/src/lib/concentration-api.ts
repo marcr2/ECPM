@@ -10,6 +10,8 @@ const API_BASE =
 
 // ---------- Types (mirror backend Pydantic schemas) ----------
 
+export type DataSource = "edgar" | "census" | "estimated";
+
 export interface IndustryListItem {
   naics: string;
   name: string;
@@ -17,6 +19,7 @@ export interface IndustryListItem {
   hhi: number;
   level: "monopoly" | "highly_concentrated" | "moderately_concentrated" | "competitive";
   trend_direction: "increasing" | "decreasing" | "stable";
+  data_source?: DataSource | null;
 }
 
 export interface IndustriesResponse {

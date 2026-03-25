@@ -17,7 +17,8 @@ class IndustryConcentration(Base):
     """Concentration metrics for an industry in a given year.
 
     Stores CR4, CR8, HHI, and related metrics computed from
-    Census Bureau Economic Census data.
+    SEC EDGAR firm revenue data, Census Bureau Economic Census,
+    or establishment-count estimates (fallback).
     """
 
     __tablename__ = "industry_concentration"
@@ -30,6 +31,9 @@ class IndustryConcentration(Base):
     hhi: Mapped[float] = mapped_column(Float, nullable=False)  # Herfindahl-Hirschman (0-10000)
     num_firms: Mapped[int] = mapped_column(Integer, nullable=False)
     total_revenue: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    data_source: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True, default="estimated",
+    )  # "edgar", "census", or "estimated"
     last_updated: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -62,6 +66,7 @@ class FirmMarketShare(Base):
     naics_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     firm_name: Mapped[str] = mapped_column(String(200), nullable=False)
     parent_company: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    cik: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # SEC EDGAR CIK
     revenue: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     market_share_pct: Mapped[float] = mapped_column(Float, nullable=False)  # 0-100
     rank: Mapped[int] = mapped_column(Integer, nullable=False)

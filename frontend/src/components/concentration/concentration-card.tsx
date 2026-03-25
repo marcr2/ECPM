@@ -44,9 +44,12 @@ export function ConcentrationCard({ industry, onClick }: ConcentrationCardProps)
           </div>
         </div>
 
-        {/* Trend and NAICS */}
+        {/* Trend, source, and NAICS */}
         <div className="flex items-center justify-between text-xs">
-          <TrendIndicator direction={industry.trend_direction} />
+          <div className="flex items-center gap-2">
+            <TrendIndicator direction={industry.trend_direction} />
+            <DataSourceBadge source={industry.data_source} />
+          </div>
           <span className="text-muted-foreground">NAICS: {industry.naics}</span>
         </div>
 
@@ -114,6 +117,39 @@ function TrendIndicator({ direction }: { direction: string }) {
     <span className={`inline-flex items-center gap-1 ${color}`}>
       <span>{icon}</span>
       <span>{label}</span>
+    </span>
+  );
+}
+
+function DataSourceBadge({ source }: { source?: string | null }) {
+  if (!source) return null;
+
+  const config: Record<string, { color: string; label: string; title: string }> = {
+    edgar: {
+      color: "text-emerald-500 bg-emerald-500/10",
+      label: "SEC",
+      title: "Computed from SEC EDGAR 10-K firm revenue data",
+    },
+    census: {
+      color: "text-blue-400 bg-blue-400/10",
+      label: "Census",
+      title: "Computed from Census Economic Census receipts",
+    },
+    estimated: {
+      color: "text-amber-500 bg-amber-500/10",
+      label: "Est.",
+      title: "Estimated from establishment counts (low confidence)",
+    },
+  };
+
+  const { color, label, title } = config[source] || config.estimated;
+
+  return (
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${color}`}
+      title={title}
+    >
+      {label}
     </span>
   );
 }

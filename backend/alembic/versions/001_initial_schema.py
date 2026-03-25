@@ -70,10 +70,12 @@ def upgrade() -> None:
         ),
     )
 
-    # Convert to TimescaleDB hypertable
+    # Convert to TimescaleDB hypertable with 1-year chunks to keep chunk count
+    # manageable for multi-decade data (avoids max_locks_per_transaction exhaustion)
     op.execute(
         "SELECT create_hypertable('observations', 'observation_date', "
-        "if_not_exists => TRUE, migrate_data => TRUE)"
+        "if_not_exists => TRUE, migrate_data => TRUE, "
+        "chunk_time_interval => INTERVAL '1 year')"
     )
 
     # Index on series_id for per-series queries

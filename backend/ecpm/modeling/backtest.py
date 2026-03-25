@@ -1,12 +1,12 @@
 """Historical backtesting against known crisis episodes.
 
-Evaluates the Composite Crisis Index against 6 major historical
+Evaluates the Composite Crisis Index against 14 historical
 crisis episodes, checking 12-month and 24-month early-warning
 capability.
 
 Exports:
     run_episode       -- backtest a single crisis episode
-    run_all_backtests -- backtest all 6 episodes
+    run_all_backtests -- backtest all episodes
     CRISIS_EPISODES   -- list of episode definitions
 """
 
@@ -28,29 +28,69 @@ CRISIS_EPISODES: list[dict] = [
         "end_date": "1933-03-01",
     },
     {
-        "name": "Oil/Stagflation",
+        "name": "Post-War Transition",
+        "start_date": "1948-11-01",
+        "end_date": "1949-10-01",
+    },
+    {
+        "name": "Post-Korean War",
+        "start_date": "1953-07-01",
+        "end_date": "1954-05-01",
+    },
+    {
+        "name": "Asian Flu Recession",
+        "start_date": "1957-08-01",
+        "end_date": "1958-04-01",
+    },
+    {
+        "name": "Monetary Tightening",
+        "start_date": "1960-04-01",
+        "end_date": "1961-02-01",
+    },
+    {
+        "name": "Vietnam Era",
+        "start_date": "1969-12-01",
+        "end_date": "1970-11-01",
+    },
+    {
+        "name": "Oil Shock",
         "start_date": "1973-11-01",
         "end_date": "1975-03-01",
     },
     {
-        "name": "Volcker",
+        "name": "First Volcker",
         "start_date": "1980-01-01",
+        "end_date": "1980-07-01",
+    },
+    {
+        "name": "Double-Dip",
+        "start_date": "1981-07-01",
         "end_date": "1982-11-01",
     },
     {
-        "name": "Dot-com",
+        "name": "Gulf War",
+        "start_date": "1990-07-01",
+        "end_date": "1991-03-01",
+    },
+    {
+        "name": "Dot-Com Crash",
         "start_date": "2001-03-01",
         "end_date": "2001-11-01",
     },
     {
-        "name": "GFC",
+        "name": "Great Recession",
         "start_date": "2007-12-01",
         "end_date": "2009-06-01",
     },
     {
-        "name": "COVID",
+        "name": "COVID-19",
         "start_date": "2020-02-01",
         "end_date": "2020-04-01",
+    },
+    {
+        "name": "Post-Pandemic Inflation",
+        "start_date": "2021-03-01",
+        "end_date": "2023-06-01",
     },
 ]
 
@@ -98,6 +138,9 @@ def run_episode(
 
     # Convert history to a Series for easier manipulation
     dates = pd.DatetimeIndex([entry["date"] for entry in composite_history])
+    # Ensure timezone-naive for comparison with episode dates
+    if dates.tz is not None:
+        dates = dates.tz_localize(None)
     values = pd.Series(
         [entry["composite"] for entry in composite_history],
         index=dates,
@@ -118,8 +161,17 @@ def run_episode(
             data_end=str(values.index.max()) if len(values) > 0 else "empty",
             required_start=str(window_start),
         )
-        # Still compute what we can with available data
-        window_data = values
+        return {
+            "episode_name": episode_name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "crisis_index_series": [],
+            "warning_12m": None,
+            "warning_24m": None,
+            "peak_value": None,
+            "peak_date": None,
+            "insufficient_data": True,
+        }
     else:
         window_data = values[
             (values.index >= window_start) & (values.index <= end_dt)
@@ -192,7 +244,7 @@ def run_episode(
 def run_all_backtests(
     indicators: pd.DataFrame,
 ) -> list[dict]:
-    """Run backtests for all 6 historical crisis episodes.
+    """Run backtests for all historical crisis episodes.
 
     Parameters
     ----------
